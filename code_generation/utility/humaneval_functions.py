@@ -1,12 +1,11 @@
+
 import ast
 import doctest
 from typing import Tuple, List, Dict
-import inspect
+import builtins
 
 
-class HumanEvalHelper():
-    def __init__(self):
-        pass
+class CodeGenerationHumanEvalHelper():
 
     def seperate_original_desciptions(prompt: str) -> Tuple[str, str] | None:
         tree = ast.parse(prompt)
@@ -71,6 +70,27 @@ class HumanEvalHelper():
         return ("\n".join(lines), test_cases)
 
     def process_original_tests(test_cases: str) -> str | None:
+        """
+        This function is used to process the original check function and remove any useless information.
+
+        E.g.: HumanEval/0 original check function included an unnecessary METADATA dictionary.
+            
+            METADATA = {
+                'author': 'jt',
+                'dataset': 'test'
+            }
+
+            def check(candidate):
+                assert candidate([1.0, 2.0, 3.9, 4.0, 5.0, 2.2], 0.3) == True
+                assert candidate([1.0, 2.0, 3.9, 4.0, 5.0, 2.2], 0.05) == False
+                assert candidate([1.0, 2.0, 5.9, 4.0, 5.0], 0.95) == True
+                assert candidate([1.0, 2.0, 5.9, 4.0, 5.0], 0.8) == False
+                assert candidate([1.0, 2.0, 3.0, 4.0, 5.0, 2.0], 0.1) == True
+                assert candidate([1.1, 2.2, 3.1, 4.1, 5.1], 1.0) == True
+                assert candidate([1.1, 2.2, 3.1, 4.1, 5.1], 0.5) == False
+            
+        With this function, the METADATA dictionary is purged and only the check function is returned
+        """
         tree = ast.parse(test_cases)
         test_case = None
         for node in tree.body:
@@ -128,69 +148,30 @@ class HumanEvalHelper():
 
         return (func_name_preserved, "\n".join(processed_lines))
     
+    def extract_func_name_from_example(code: str) -> str | None:
+        """
+        Run this function on the test examples to obtain the true function names.
 
-class CodeInconsistencyHumanEvalHelper(HumanEvalHelper):
-    @staticmethod
-    def check_input_output(
-        full_sol: str, 
-        test_input: str, 
-        expected_output: str, 
-        func_name: str, 
-        input_metadata: List[str]
-    ) -> bool:
-        namespace = {}
-        try:
-            exec(full_sol, namespace)
-            # sig = inspect.signature(namespace[func_name])
-            # if len(sig.parameters) > 1 and isinstance(test_input, list):
-            if len(input_metadata) > 1 or input_metadata[0] != ast.List.__name__:
-                assert namespace[func_name](*test_input) == expected_output
+        This function is needed to circumvent the issue where there are more than 1 function in the given task and 
+        we need to discern between the true task function and the helper function for testing
+
+        E.g.: 
+        test_case = 'round(find_zero([1, 2]), 2) # f(x) = 1 + 2x'
+        extract_func_name(test_case) == 'find_zero'
+        """
+        t = ast.parse(code)                 # parsing the string code to obtain the AST
+        for node in t.body:                 # for loop iterating through each node in the the AST
+            if isinstance(node, ast.Expr):                      # if statement checking if the node is of type ast.Expr
+                node_val = node.value
+                if isinstance(node_val, ast.Call):              # if the node is calling a function
+                    func_name = node_val.func.id                # obtaining the function name
+                    func_args = node_val.args                   # obtaining the function args
+                    if hasattr(builtins, func_name):          # if statement checking if the function is a built in python function. If so, this means that this function cannot be the "task function"
+                        for arg in func_args:                   
+                            if isinstance(arg, ast.Call):       
+                                subnode = ast.unparse(arg)
+                                return CodeGenerationHumanEvalHelper.extract_func_name_from_example(subnode)
+                    else:
+                        return func_name
             else:
-                assert namespace[func_name](test_input) == expected_output
-            return True
-        except AssertionError as e:
-            return False
-        except Exception as e:
-            print(f"Could not evaluate TF due to the following error: {e}")
-            return False
-
-
-
-
-
-if __name__ == "__main__":
-
-    x = """from typing import List
-
-def separate_paren_groups(paren_string: str) -> List[str]:
-    result = []
-    stack = []
-    current = ""
-    
-    for char in paren_string:
-        if char == "(":
-            stack.append("(")
-            current += char
-        elif char == ")":
-            stack.pop()
-            current += char
-            if not stack:
-                result.append(current)
-                current = ""
-        else:
-            current += char
-    
-    return result
-
-# Example usage
-print(separate_paren_groups("(a(b)c) (d(e)f)")) # Output: ["(a(b)c)", "(d(e)f)"]
-
-x = [1, 2, 3]
-
-def add(x,a):
-    return x + a
-
-"""
-
-    qn_desc, examples = HumanEvalHelper.process_llm_function_outputs("make_palindrome", x)
-    print(examples)
+                raise ValueError("Could not extract the function name.")
