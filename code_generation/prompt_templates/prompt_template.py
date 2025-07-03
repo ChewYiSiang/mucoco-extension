@@ -66,9 +66,32 @@ class OpenEndedPromptTemplate(PromptTemplate):
         return prompt
 
     def structure_few_shot_examples(test_cases: Dict[str, str]) -> str:
+        """
+        This function is used to format examples in a dictionary into a standardised doctest format to be included in a few shot prompt template. This is used to structure the examples for few shot prompts.
+
+        Args: 
+            test_cases (Dict[str, str]): a dictionary containing examples with inputs and their respective expected outputs. 
+
+                The dictionary keys are function calls with inputs. The value for the dicionary keys is the expected output from executing the function and input.
+
+        Returns:
+            str: a string representing the structured few shot examples
+        """
         return "\n".join(">>> " + test + "\n" + test_cases[test] for test in test_cases)
     
     def structure_one_shot_example(test_cases: Dict[str, str]) -> str:
+        """
+        This function is used to format examples in a dictionary into a standardised doctest format to be included in a one shot prompt template. This is used to structure the examples used for one shot prompts.
+
+        Args: 
+            test_cases (Dict[str, str]): a dictionary containing examples with inputs and their respective expected outputs. 
+
+                The dictionary keys are function calls with inputs. The value for the dicionary keys is the expected output from executing the function and input.
+
+        Returns:
+            str: a string representing the structured one shot examples
+        """
+        
         random_example = random.choice(list(test_cases.keys()))
         return ">>> " + random_example + "\n" + test_cases[random_example]
     

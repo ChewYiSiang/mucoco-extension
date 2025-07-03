@@ -32,7 +32,6 @@ class CodeGenerationTester:
             example_helper: Callable[[Dict[str, str]], str] = None, 
         ) -> int:
         
-        
         if prompt_type != 'zero_shot' and example_helper is None:
             raise ValueError("A non zero-shot prompt is used, yet no example helper function was given. Add the approrpriate example_helper for this prompt template.")
         
@@ -108,7 +107,7 @@ class CodeGenerationTester:
                     processed_output = llm.process_ans(ans)
                 except ValueError:                          # Raised when the llm answer did not have a python code block
                     try: 
-                        exec(ans)                           # Attempting to run the llm answer directly. In some cases, the returned answer can be directly run
+                        exec(ans)                           # Attempting to run the llm answer directly. In some cases, the returned answer can be directly run as no code block was returned
                         processed_output = ans              
                     except Exception as e:                  # Else, if the answer is not in a valid code block and cannot be run directly, it is a faulty answer and is stored accordingly.
                         print(f"Could not process LLM answer: {e}")
