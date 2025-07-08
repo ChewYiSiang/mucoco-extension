@@ -3,6 +3,8 @@ from typing import List, Tuple, Callable, Dict
 import textwrap
 import random
 import string
+import re
+from code_mutation.ast_mutation import ASTNodeTransformers
 
 class CodeMutator:
     @classmethod
@@ -18,7 +20,6 @@ class CodeMutator:
         main_func = set()
         func_names = []
         var_names = []
-        annotation_names = set()
 
         try: 
             tree = ast.parse(code)
@@ -51,9 +52,9 @@ class CodeMutator:
         func_names: List[str],
         mutation_type : str,
         var_names: List[str] = None,
-    ) -> Tuple[str, str, str]:
+    ) -> Tuple[str, str, str, Dict[str, str]]:
         # 1) Build rename mapping for all identifiers
-        rename_map: dict[str, str] = {}
+        rename_map = {}
 
         if mutation_type.strip().lower() == "sequential":
             for idx, name in enumerate(func_names, start=1):
@@ -72,34 +73,15 @@ class CodeMutator:
         else:
             raise ValueError("Invalid type of mutation used")
     
-        # 2) AST transformer to rename identifiers
-        class VariableTransformer(ast.NodeTransformer):
-            def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.AST:
-                # rename function definition
-                if node.name in rename_map:
-                    node.name = rename_map[node.name]
-                self.generic_visit(node)
-                return node
-
-            def visit_arg(self, node: ast.arg) -> ast.AST:
-                # rename function parameters
-                if node.arg in rename_map:
-                    node.arg = rename_map[node.arg]
-                return node
-
-            def visit_Name(self, node: ast.Name) -> ast.AST:
-                # rename all identifier usage
-                if node.id in rename_map:
-                    node.id = rename_map[node.id]
-                return node
-
         # 3) Apply renamer to the source code
         try: 
             tree = ast.parse(source)
         except IndentationError:
             source += "\n" + "    pass"
             tree = ast.parse(source)
-        mutated_source = VariableTransformer().visit(tree)
+        
+        var_name_transformer = ASTNodeTransformers.VariableNameTransformer(rename_map=rename_map)
+        mutated_source = var_name_transformer.visit(tree)
         ast.fix_missing_locations(mutated_source)
         mutated_source = ast.unparse(mutated_source)
 
@@ -108,15 +90,16 @@ class CodeMutator:
 
         for eg in examples:
             test_tree = ast.parse(eg)
-            mutated_test_tree = VariableTransformer().visit(test_tree)
+            mutated_test_tree = var_name_transformer.visit(test_tree)
             ast.fix_missing_locations(mutated_test_tree)
             mutated_test_case[ast.unparse(mutated_test_tree)] = examples[eg]
         
-        # 5) Applying mutation onto quetion description, should the original function name appear in there.
+        # 5) Applying mutation onto question description, should the original function name appear in there.
         for name in rename_map:
-            qn_desc = qn_desc.replace(name, rename_map[name])
+            regex_pattern = rf'\b{re.escape(name)}\b'
+            qn_desc = re.sub(regex_pattern, rename_map[name], qn_desc)
 
-        return mutated_source, mutated_test_case, qn_desc
+        return mutated_source, mutated_test_case, qn_desc, rename_map
     
     @staticmethod
     def generate_random_name() -> str:
@@ -128,44 +111,26 @@ class CodeMutator:
     def mutate_for_to_enumerate(
         source: str
     ) -> str:
-        class ForToEnumerateTransformer(ast.NodeTransformer):
-            def visit_For(self, node):
-                self.generic_visit(node)
-
-                # bool value checking if the iterable is a range function E.g.: for i in range(10)
-                iter_is_range = isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == "range"
-
-                # bool indicating if the iterable is a Name E.g.: for i in list
-                iter_is_var = isinstance(node.iter, ast.Name) and isinstance(node.iter.ctx, ast.Load)
-
-                if iter_is_range or iter_is_var:
-                    # Transform: for i in range(...)
-                    # Into: for idx, i in enumerate(range(...))
-
-                    new_target = ast.Tuple(elts=[
-                        ast.Name(id='idx', ctx=ast.Store()),  # create idx
-                        node.target                             # keep original i
-                    ], ctx=ast.Store())
-
-                    new_iter = ast.Call(
-                        func=ast.Name(id='enumerate', ctx=ast.Load()),
-                        args=[node.iter],
-                        keywords=[]
-                    )
-
-                    return ast.For(
-                        target=new_target,
-                        iter=new_iter,
-                        body=node.body,
-                        orelse=node.orelse
-                    )
-                return node
         try: 
             tree = ast.parse(source)
         except IndentationError:
             source += "\n" + "    pass"
             tree = ast.parse(source)
-        mutated_source = ForToEnumerateTransformer().visit(tree)
+        mutated_source = ASTNodeTransformers.ForToEnumerateTransformer().visit(tree)
+        ast.fix_missing_locations(mutated_source)
+
+        mutated_code = ast.unparse(mutated_source)
+
+        return mutated_code
+    
+    @staticmethod
+    def mutate_for_to_while(source: str):
+        try: 
+            tree = ast.parse(source)
+        except IndentationError:
+            source += "\n" + "    pass"
+            tree = ast.parse(source)
+        mutated_source = ASTNodeTransformers.ForToWhileNodeTransformer().visit(tree)
         ast.fix_missing_locations(mutated_source)
 
         mutated_code = ast.unparse(mutated_source)
@@ -175,15 +140,12 @@ class CodeMutator:
 
 if __name__ == "__main__":
     x = textwrap.dedent("""
-    def string_xor(a: str, b: str) -> str:
-        def xor(i, j):
-            if i == j:
-                return '0'
-            else:
-                return '1'
+        def jo():
+            for i in range(10):
+                print(i)
 
-        return ''.join(xor(x, y) for x, y in zip(a, b))
+        for x in i:
+            print(i)
     """)
-    f, c = CodeMutator.obtain_key_info_from_code(x)
-    print(f)
-    print(c)
+    x = CodeMutator.mutate_for_to_while(x)
+    print(x)

@@ -1,7 +1,7 @@
 from database import MongoDBHelper
 from llm_models.code_llms import CodeLLM
 from code_inconsistency.utility.humaneval_functions import CodeInconsistencyHumanEvalHelper
-from utility.mutation_functions import CodeMutator
+from code_mutation.mutation_functions import CodeMutator
 from typing import Callable, Dict, Tuple, List
 from code_generation.code_generation_tester import CodeGenerationTester
 from tqdm import tqdm
@@ -41,7 +41,6 @@ class LLMConsistencyTester(CodeGenerationTester):
         try:                            # try statement to catch any potential errors arising from using free APIs. These APIs are usually unstable and can crash at any time. 
             for idx in tqdm(range(continue_from, num_tests)):
                 task_id = f"HumanEvalTF{idx}"
-                failure_type = None
 
                 qn_sample = self.question_database.find_one({"_id": task_id})
 
@@ -50,19 +49,28 @@ class LLMConsistencyTester(CodeGenerationTester):
 
                 prompt_template = prompt_helper()
             
-                full_sol = qn_sample['full_sol']  
-                qn_desc = qn_sample['qn_desc']                      
-                inputs = qn_sample['input']
-                test_input = inputs['test_input']
-                input_metadata = inputs['input_metadata']
-                examples = qn_sample['examples']              
-                expected_output = qn_sample['expected_output']      
+                full_sol = qn_sample['full_sol']                    # full canonical solution for the task
+                qn_desc = qn_sample['qn_desc']                      # task description. This should be the extracted doc string from the original task
+                inputs = qn_sample['input']                         # inputs for the task in the form of Tuple[test_input, input_metadata]
+                test_input = inputs['test_input']                   # test input 
+                input_metadata = inputs['input_metadata']           # metadata for the input type expected
+                examples = qn_sample['examples']                    # examples for other prompt techniques like one shot, few shot
+                expected_output = qn_sample['expected_output']      # expected output from the function after running the input
+
+                ## Dicionary containing the log entry
+                log_entry = {
+                    "task_id": task_id,
+                    "prompt": None,
+                    "model_output": None,
+                    "expected_output": expected_output,
+                    "failure_type": None
+                }
                 
-                # Obtaining the function name of the task function
+                ## Obtaining the function name of the task function
                 random_test_case = random.choice(list(examples.keys()))
                 func_name = CodeInconsistencyHumanEvalHelper.extract_func_name_from_example(random_test_case)      
                 
-                # Sanity Check to ensure that the complete solution passes the check functions
+                ## Sanity Check to ensure that the complete solution passes the check functions
                 check_soln_validity = CodeInconsistencyHumanEvalHelper.check_input_output(
                     full_sol= full_sol,
                     test_input=test_input,
@@ -76,10 +84,10 @@ class LLMConsistencyTester(CodeGenerationTester):
                     print(f"Skipping {task_id} as the complete solution did not pass the check function.")
                     continue
                 
-                # Handling Task Mutation (If any)
+                ## Handling Task Mutation (If any)
                 if mutation_type is not None:
                     func_names, var_names = CodeMutator.obtain_key_info_from_code(qn)
-                    qn, examples, qn_desc = CodeMutator.mutate_variable_names(
+                    qn, examples, qn_desc, mutation_rename_map = CodeMutator.mutate_variable_names(
                         source=qn, 
                         qn_desc= qn_desc,
                         examples=examples, 
@@ -87,45 +95,40 @@ class LLMConsistencyTester(CodeGenerationTester):
                         mutation_type=mutation_type,
                         var_names=var_names,
                     )
+                    func_name = mutation_rename_map[func_name]
                 
-                # Formating of examples into doc test format for one shot/few shot prompts
+                ## Formating of examples into doc test format for one shot/few shot prompts
                 if example_helper is not None:
                     prompt_examples = example_helper(examples)
                 
-                
+                ## Dictionary containing input variables to format the prompt with
                 input_variables = {
                     'qn_desc': qn_desc,
                     'full_sol': full_sol,
                     'test_input': test_input,
                     'example': prompt_examples if example_helper is not None else None,
                 }
+                log_entry["prompt"] = prompt_template.format(**input_variables)            # storing formatted prompt into database entry
 
-                # Running the llm on the input variables and the prompt template
+                ## Running the llm on the input variables and the prompt template
                 ans =  llm.invoke(input_variables=input_variables, prompt_template=prompt_template)
+                log_entry['model_output'] = ans                                            # storing model answer into the database entry
+
+                ## Running the formatted prompt into the LLM
                 try: 
                     assert eval(ans) == eval(str(expected_output))
                 except Exception as e:
-                    failure_type = type(e)
                     if isinstance(e, AssertionError):
                         print("{task_id}: Function failed to run due to following error -> {e}".format(e = type(e), task_id = task_id))
                     else:
                         print("{task_id}: Could not run the LLM answer due to the following error {e}".format(e = type(e), task_id = task_id))
-                    
-                input_data = {
-                    "task_id": task_id,
-                    "prompt": prompt_template.format(**input_variables),
-                    "model_output": ans,
-                    "expected_output": expected_output,
-                    "failure_type": failure_type
-                }
-                file_exists = os.path.isfile(output_file_path)
-
-                # Append the row with or without headers
-                with open(output_file_path, mode='a', newline='', encoding='utf-8') as csvfile:
-                    df = pd.DataFrame([input_data])
-                    df.to_csv(csvfile, header=not file_exists, index=False)
+                    log_entry['failure_type'] = type(e)
+                
+                ## Logging data into the csv file
+                LLMConsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
 
                 time.sleep(5)
+
 
                 
             return task_pass_count
