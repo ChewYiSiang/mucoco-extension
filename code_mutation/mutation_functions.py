@@ -1,12 +1,21 @@
 import ast
-from typing import List, Tuple, Callable, Dict
+from typing import List, Tuple, Callable, Dict, Any
 import textwrap
+import inspect
 import random
 import string
 import re
 from code_mutation.ast_mutation import ASTNodeTransformers
+from code_inconsistency.utility.humaneval_functions import CodeInconsistencyHumanEvalHelper
+
+FOR2WHILE = "for2while"
+FOR2ENUMERATE = "for2enumerate"
+RANDOM_MUTATION = "random"
+SEQUENTIAL_MUTATION = "sequential"
 
 class CodeMutator:
+    mutation_types = [FOR2ENUMERATE, FOR2WHILE, RANDOM_MUTATION, SEQUENTIAL_MUTATION]
+
     @classmethod
     def code_masking(original_code : str, mask_type : List[str] = ["var"]) -> str:
         tree = ast.parse()
@@ -14,6 +23,81 @@ class CodeMutator:
             print(mask)
 
         ### Will require a ending step where it executes against the check function
+    @staticmethod
+    def mutate_for_code_inconsistency_test(
+        mutation_type: str | None, 
+        full_sol: str,
+        examples: Dict[str, str],
+        qn_desc: str,
+        input_args: Any,
+        output_args: Any,
+    ) -> str:
+        mutated_dict = {
+            'full_sol' : full_sol,
+            'examples': examples,
+            'qn_desc' : qn_desc
+        }
+
+        if mutation_type == None:
+            return mutated_dict
+        mutation_type = mutation_type.strip()
+        
+        try:
+            if mutation_type == FOR2WHILE:
+                input_metadata = CodeInconsistencyHumanEvalHelper.extract_input_metadata(examples = examples, qn = full_sol)
+                mutated_sol = CodeMutator.mutate_for_to_while(source = full_sol, input_metadata=input_metadata)
+                example = random.choice(list(examples.keys()))
+                func_name = CodeInconsistencyHumanEvalHelper.extract_func_name_from_example(example)   
+
+            elif mutation_type == FOR2ENUMERATE:
+                mutated_sol = CodeMutator.mutate_for_to_enumerate(source = full_sol)
+                example = random.choice(list(examples.keys()))
+                func_name = CodeInconsistencyHumanEvalHelper.extract_func_name_from_example(example)   
+
+            elif mutation_type == SEQUENTIAL_MUTATION or mutation_type == RANDOM_MUTATION:
+                func_names, var_names = CodeMutator.obtain_key_info_from_code(full_sol)
+                mutated_sol, examples, qn_desc, mutation_rename_map = CodeMutator.mutate_variable_names(
+                            source=full_sol, 
+                            qn_desc= qn_desc,
+                            examples= examples,
+                            func_names=func_names, 
+                            mutation_type=mutation_type,
+                            var_names=var_names,
+                        )
+                func_name = mutation_rename_map[func_name]
+                mutated_dict['examples'] = examples
+                mutated_dict['qn_desc'] = qn_desc            
+            else:
+                raise InvalidMutationTypeError(mutation_type= mutation_type, allowed_types=CodeMutator.mutation_types)
+        except Exception as e:
+            raise e
+        
+        ## Checking if the mutated solution is identical to the original solution
+        try:
+            assert mutated_sol != full_sol.strip()
+        except:
+            raise IdenticalMutationError()
+        
+        ## Checking if the mutated solution still passes the check function
+        try:
+            namespace = {}
+            exec(mutated_sol, namespace)
+
+            sig = inspect.signature(namespace[func_name])
+
+            test_input = input_args
+            expected_output = output_args
+
+            if len(sig.parameters) > 1 and isinstance(test_input, list):
+                assert namespace[func_name](*test_input) == expected_output
+
+            else:
+                assert namespace[func_name](test_input) == expected_output
+
+            mutated_dict['full_sol'] = mutated_sol
+        except Exception as e:
+            raise MutationCheckFailedError()
+        return mutated_dict
 
     @staticmethod
     def obtain_key_info_from_code(code : str):
@@ -56,13 +140,13 @@ class CodeMutator:
         # 1) Build rename mapping for all identifiers
         rename_map = {}
 
-        if mutation_type.strip().lower() == "sequential":
+        if mutation_type.strip().lower() == SEQUENTIAL_MUTATION:
             for idx, name in enumerate(func_names, start=1):
                 rename_map[name] = f"generic_function{idx}"
             if var_names:
                 for idx, name in enumerate(var_names, start=1):
                     rename_map[name] = f"var{idx}"
-        elif mutation_type.strip().lower() == "random":
+        elif mutation_type.strip().lower() == RANDOM_MUTATION:
             all_targets = list(func_names) + (var_names or [])
 
             for orig in all_targets:
@@ -116,36 +200,62 @@ class CodeMutator:
         except IndentationError:
             source += "\n" + "    pass"
             tree = ast.parse(source)
-        mutated_source = ASTNodeTransformers.ForToEnumerateTransformer().visit(tree)
+        try: 
+            mutated_source = ASTNodeTransformers.ForToEnumerateTransformer().visit(tree)
+        except Exception as e:
+            raise MutationFailedError(error = e)
+        
         ast.fix_missing_locations(mutated_source)
-
         mutated_code = ast.unparse(mutated_source)
 
         return mutated_code
     
     @staticmethod
-    def mutate_for_to_while(source: str):
+    def mutate_for_to_while(
+        source: str, 
+        input_metadata: Dict[str, str]
+    ) -> str:
         try: 
             tree = ast.parse(source)
         except IndentationError:
             source += "\n" + "    pass"
             tree = ast.parse(source)
-        mutated_source = ASTNodeTransformers.ForToWhileNodeTransformer().visit(tree)
+        try: 
+            mutated_source = ASTNodeTransformers.ForToWhileNodeTransformer(input_metadata= input_metadata).visit(tree)
+        except Exception as e:
+            raise MutationFailedError(error = e)
+
         ast.fix_missing_locations(mutated_source)
-
         mutated_code = ast.unparse(mutated_source)
-
         return mutated_code
 
+class MutationError(Exception):
+    """Base class for mutation-related errors."""
+    pass
+
+class InvalidMutationTypeError(MutationError):
+    """Raised when an unknown mutation type is used."""
+    def __init__(self, mutation_type, allowed_types):
+        message = f"'{mutation_type}' is not a valid mutation type. Allowed types are: {', '.join(allowed_types)}"
+        super().__init__(message)
+
+class IdenticalMutationError(MutationError):
+    """Raised when the mutated code is identical to the original."""
+    def __init__(self):
+        message = "Mutated solution is identical to the original solution."
+        super().__init__(message)
+
+class MutationCheckFailedError(MutationError):
+    """Raised when the mutated solution does not pass the check function."""
+    def __init__(self):
+        message = f"Mutated solution did not pass the check function."
+        super().__init__(message)
+
+class MutationFailedError(MutationError):
+    """Raise when the solution could not be mutated."""
+    def __init__(self, error):
+        message = f"Solution could not be mutated due to the following error: {type(error)} > {error}"
+        super().__init__(message)
 
 if __name__ == "__main__":
-    x = textwrap.dedent("""
-        def jo():
-            for i in range(10):
-                print(i)
-
-        for x in i:
-            print(i)
-    """)
-    x = CodeMutator.mutate_for_to_while(x)
-    print(x)
+    print(f"Invalid mutation type was used. The available mutation types are {', '.join(CodeMutator.mutation_types)}")

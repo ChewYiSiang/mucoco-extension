@@ -1,5 +1,6 @@
 import pandas as pd
-from typing import Tuple
+from typing import Tuple, Any, List
+import ast
 
 class DataLogHelper:
     def compare_code_generation_dataframe_results(log1: pd.DataFrame, log2: pd.DataFrame) -> Tuple[int, int]:
@@ -64,19 +65,21 @@ class DataLogHelper:
             task_id = log1_data['task_id']
             log_2_matched_data = log2[log2["task_id"] == task_id]
 
-            if log_2_matched_data.shape[0] == 1:
-                log2_data = log_2_matched_data.iloc[0]
-                log2_data_index = log_2_matched_data.index[0]
-                log2 = log2.drop(index = log2_data_index)
+            if log_2_matched_data.shape[0] != 1:
+                raise  ValueError(f"Expected exactly one matched task_id in log_2, but found {log_2_matched_data.shape[0]} matched task_id.")
 
-                log1_result = log1_data['failure_type']
-                log2_result = log2_data['failure_type']
+            log2_data = log_2_matched_data.iloc[0]
+            log2_data_index = log_2_matched_data.index[0]
+            log2 = log2.drop(index = log2_data_index)
 
-                if (isinstance(log1_result, float) and not isinstance(log2_result, float)):
-                    log2_inconsistencies +=1
-                elif (isinstance(log2_result, float) and not isinstance(log1_result, float)):
-                    log1_inconsistencies +=1
-        
+            log1_result = log1_data['failure_type']
+            log2_result = log2_data['failure_type']
+
+            if (isinstance(log1_result, float) and not isinstance(log2_result, float)):
+                log2_inconsistencies +=1
+            elif (isinstance(log2_result, float) and not isinstance(log1_result, float)):
+                log1_inconsistencies +=1
+
         ## Checking if log1 have any remaining entries. This is not used now, but could come in handy in the future.
         # if log1.shape[0] > 0:
         #     for idx in range(log1.shape[0]):

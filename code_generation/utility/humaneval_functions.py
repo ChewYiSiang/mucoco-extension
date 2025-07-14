@@ -228,20 +228,25 @@ class CodeGenerationHumanEvalHelper():
         E.g.: 
         test_case = 'round(find_zero([1, 2]), 2) # f(x) = 1 + 2x'
         extract_func_name(test_case) == 'find_zero'
+        
+        Args:
+            code (str): The example extracted from question description
+
+        Returns:
+            str : The extracted function name
+
         """
         t = ast.parse(code)                 # parsing the string code to obtain the AST
         for node in t.body:                 # for loop iterating through each node in the the AST
-            if isinstance(node, ast.Expr):                      # if statement checking if the node is of type ast.Expr
-                node_val = node.value
-                if isinstance(node_val, ast.Call):              # if the node is calling a function
-                    func_name = node_val.func.id                # obtaining the function name
-                    func_args = node_val.args                   # obtaining the function args
-                    if hasattr(builtins, func_name):          # if statement checking if the function is a built in python function. If so, this means that this function cannot be the "task function"
-                        for arg in func_args:                   
-                            if isinstance(arg, ast.Call):       
-                                subnode = ast.unparse(arg)
-                                return CodeGenerationHumanEvalHelper.extract_func_name_from_example(subnode)
-                    else:
-                        return func_name
+            if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):                      
+                func_name = node.value.func.id                # obtaining the function name
+                func_args = node.value.args                   # obtaining the function args
+                if hasattr(builtins, func_name):              # if statement checking if the function is a built in python function. If so, this means that this function cannot be the "task function"
+                    for arg in func_args:                   
+                        if isinstance(arg, ast.Call):       
+                            subnode = ast.unparse(arg)
+                            return CodeGenerationHumanEvalHelper.extract_func_name_from_example(subnode)
+                else:
+                    return func_name
             else:
                 raise ValueError("Could not extract the function name.")

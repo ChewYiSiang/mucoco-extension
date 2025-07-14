@@ -1,6 +1,0 @@
-Code Generation Pipeline
-- TO ensure that the pipeline checks that few shot examples do indeed have more than 1 example. Some original test cases only have a single example. In this case, these test cases should be rejected for few shot examples and can't be used for qualitative analysis.
-- To create a comparison between logs to find out any inconsistencies between prompt types/ mutations
-
-Code Inconsistency Pipeline
-- To ensure that the pipeline checks are more consistent 

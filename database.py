@@ -38,4 +38,7 @@ class MongoDBHelper:
         
 if __name__ == "__main__":
     db = MongoDBHelper()
-    db.check_database_connectivity()
+    if db.check_database_connectivity():
+        print("MongoDB connected")
+    base_qns_db = db.client["Base_Questions_DB"]
+    question_database = base_qns_db["HumanEval_Open_Ended"]

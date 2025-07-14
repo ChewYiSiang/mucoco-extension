@@ -35,8 +35,7 @@ class CodeGenerationTester:
         with open(output_file_path, mode='a', newline='', encoding='utf-8') as csvfile:
             df = pd.DataFrame([input_data])
             df.to_csv(csvfile, header=not file_exists, index=False)
-
-
+            
             
     def run_code_generation_test(
             self, 
