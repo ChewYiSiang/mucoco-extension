@@ -2,17 +2,23 @@ from code_inconsistency.utility.humaneval_functions import CodeInconsistencyHuma
 from code_generation.code_generation_tester import CodeGenerationTester
 from code_mutation.mutation_functions import CodeMutator
 from llm_models.code_llms import CodeLLM
-from typing import Callable, Dict
+from typing import Callable, Dict, Any
 from tqdm import tqdm
-import random
 import time
-
+import ast
 
 
 
 class LLMConsistencyTester(CodeGenerationTester):
     def __init__(self, qn_database: str = "HumanEval_Input_Output"):
         super().__init__(qn_database=qn_database)
+
+    def process_llm_ans(prog: str) -> Any:
+        try:
+            return ast.literal_eval(prog)
+        except Exception:
+            return prog.strip('"').strip("'") if isinstance(prog, str) else prog
+
             
     def run_code_consistency_test(
             self,
@@ -22,11 +28,10 @@ class LLMConsistencyTester(CodeGenerationTester):
             output_file_path: str,
             prompt_type: str,
             continue_from_task: str = None,
-            mutation_type: str = None,
+            lexical_mutation: str = None,
+            syntactic_mutation: str = None,
             example_helper: Callable[[Dict[str, str]], str] = None, 
     ) -> int:
-        
-        #TODO: Need a step where quotation marks should be added for string input args
         
         if prompt_type != 'zero_shot' and example_helper is None:
             raise ValueError("A non zero-shot prompt is used, yet no example helper function was given. Add the approrpriate example_helper for this prompt template.")
@@ -36,15 +41,22 @@ class LLMConsistencyTester(CodeGenerationTester):
         else:
             continue_from = 0
 
-        if mutation_type is not None and mutation_type not in CodeMutator.mutation_types:
-            raise ValueError(f"An invalid type of mutation is used. Only {CodeMutator.mutation_types} type of mutations are valid.")
+        ## Dictionary storing the types of lexical mutation and syntactic mutation
+        mutation_dict = {
+            "lexical_mutation" : lexical_mutation,
+            "syntactic_mutation" : syntactic_mutation
+        }
 
-        num_tests = min(num_tests, self.question_database.count_documents({}))         # ensuring that the number of iterations is lower than max number of documents in the db
+        for mutation in mutation_dict.values():
+            if mutation is not None and mutation not in CodeMutator.mutation_types:
+                raise ValueError(f"An invalid type of mutation is used. Only {CodeMutator.mutation_types} type of mutations are valid.")
+
+        num_tests = min(num_tests, self.question_database.count_documents({}) - continue_from)         # ensuring that the number of iterations is lower than max number of documents in the db
 
         task_pass_count = 0             # int variable tracking the number of tasks that have passed
         failed_validity = []            # list storing the test case id that have failed the check functions
         try:                            # try statement to catch any potential errors arising from using free APIs. These APIs are usually unstable and can crash at any time. 
-            for idx in tqdm(range(continue_from, num_tests)):
+            for idx in tqdm(range(continue_from, continue_from + num_tests)):
                 task_id = f"HumanEvalTF{idx}"
 
                 qn_sample = self.question_database.find_one({"_id": task_id})
@@ -77,7 +89,7 @@ class LLMConsistencyTester(CodeGenerationTester):
                     "task_id": task_id,
                     "prompt": None,
                     "model_output": None,
-                    "expected_output": output_args,
+                    "expected_output": test_outputs,
                     "failure_type": None
                 }
                                         
@@ -90,12 +102,8 @@ class LLMConsistencyTester(CodeGenerationTester):
                     output_metadata= output_metadata,
                     examples = examples
                     )
-
                 ## Processing of output args and metadata
-                if output_metadata == type(None).__name__:
-                    output_metadata = "type(None)"
-                if not eval(output_metadata) == str:
-                    output_args = eval(output_args)
+                output_args = ast.literal_eval(output_args) if output_metadata != str.__name__ else output_args
                 
                 if check_soln_validity is not True:
                     log_entry['failure_type'] = "invalid_full_solution"
@@ -106,24 +114,25 @@ class LLMConsistencyTester(CodeGenerationTester):
                 
                 ## Handling Task Mutation (If any)
                 try: 
-                    mutated_dict = CodeMutator.mutate_for_code_inconsistency_test(
-                        mutation_type = mutation_type,
-                        full_sol = full_sol,
-                        examples= examples,
-                        qn_desc= qn_desc,
-                        input_args= input_args,
-                        output_args= output_args
-                    )
+                    for mutation_type in mutation_dict.values():
+                        mutated_dict = CodeMutator.mutate_for_code_inconsistency_test(
+                            mutation_type = mutation_type,
+                            full_sol = full_sol,
+                            examples= examples,
+                            qn_desc= qn_desc,
+                            input_args= input_args,
+                            output_args= output_args
+                        )
 
-                    full_sol = mutated_dict['full_sol']
-                    qn_desc = mutated_dict['qn_desc']
-                    examples = mutated_dict['examples']
+                        full_sol = mutated_dict['full_sol']
+                        qn_desc = mutated_dict['qn_desc']
+                        examples = mutated_dict['examples']
 
                 except Exception as e:
                     log_entry['failure_type'] = f"{type(e).__name__} > {e}"
                     LLMConsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
                     continue
-                
+
                 ## Formating of examples into doc test format for one shot/few shot prompts
                 if example_helper is not None:
                     prompt_examples = example_helper(examples)
@@ -132,24 +141,22 @@ class LLMConsistencyTester(CodeGenerationTester):
                 input_variables = {
                     'qn_desc': qn_desc,
                     'full_sol': full_sol,
-                    'test_input': f'"{input_args}"',
+                    'test_input': f'"{input_args}"' if isinstance(input_args, str) else input_args,
                     'example': prompt_examples if example_helper is not None else None,
                 }
                 log_entry["prompt"] = prompt_template.format(**input_variables)            # storing formatted prompt into database entry
 
                 ## Running the llm on the input variables and the prompt template
                 ans =  llm.invoke(input_variables=input_variables, prompt_template=prompt_template)
-                log_entry['model_output'] = ans                                            # storing model answer into the database entry
-
+                ans = LLMConsistencyTester.process_llm_ans(ans)
+                log_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
                 ## Running the formatted prompt into the LLM
                 try:
-                    if isinstance(output_args, str):
-                        assert ans == output_args
-                    else:
-                        assert eval(ans) == eval(str(output_args)) 
+                    assert ans == output_args
                 except Exception as e:
                     if isinstance(e, AssertionError):
-                        print(f"{task_id}: Function failed to run due to following error: {type(e)} > {e}")
+                        pass
+                        # print(f"{task_id}: Function failed to run due to following error: {type(e)} > {e}")
                     else:
                         print(f"{task_id}: Could not run the LLM answer due to the following error {type(e)} > {e}")
                     log_entry['failure_type'] = f"{type(e).__name__} > {e}"

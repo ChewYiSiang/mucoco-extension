@@ -1,6 +1,6 @@
 import ast
 from typing import List, Tuple, Callable, Dict, Any
-import textwrap
+import multiprocessing
 import inspect
 import random
 import string
@@ -13,6 +13,20 @@ FOR2ENUMERATE = "for2enumerate"
 RANDOM_MUTATION = "random"
 SEQUENTIAL_MUTATION = "sequential"
 
+def run_llm_answer(mutated_sol: str, expected_output: str, test_input:Any, func_name: str, mp_queue = multiprocessing.Queue):
+        namespace = {}
+
+        try:
+            exec(mutated_sol, namespace)
+            sig = inspect.signature(namespace[func_name])
+
+            if len(sig.parameters) > 1 and isinstance(test_input, list):
+                assert namespace[func_name](*test_input) == expected_output
+            else:
+                assert namespace[func_name](test_input) == expected_output
+        except Exception as e:
+            mp_queue.put(e)
+
 class CodeMutator:
     mutation_types = [FOR2ENUMERATE, FOR2WHILE, RANDOM_MUTATION, SEQUENTIAL_MUTATION]
 
@@ -23,6 +37,14 @@ class CodeMutator:
             print(mask)
 
         ### Will require a ending step where it executes against the check function
+
+    @staticmethod
+    def standardize_program(prog: str) -> str:
+        cleaned_lines = [l for l in prog.splitlines() if l != ""]
+        for idx, l in enumerate(cleaned_lines):
+            cleaned_lines[idx] = l.replace(" ", "")
+        return "\n".join(cleaned_lines)
+
     @staticmethod
     def mutate_for_code_inconsistency_test(
         mutation_type: str | None, 
@@ -37,23 +59,25 @@ class CodeMutator:
             'examples': examples,
             'qn_desc' : qn_desc
         }
-
+        
         if mutation_type == None:
             return mutated_dict
         mutation_type = mutation_type.strip()
-        
+
+        timeout = 5
+
+
+        example = random.choice(list(examples.keys()))
+        func_name = CodeInconsistencyHumanEvalHelper.extract_func_name_from_example(example) 
+
         try:
             if mutation_type == FOR2WHILE:
                 input_metadata = CodeInconsistencyHumanEvalHelper.extract_input_metadata(examples = examples, qn = full_sol)
-                mutated_sol = CodeMutator.mutate_for_to_while(source = full_sol, input_metadata=input_metadata)
-                example = random.choice(list(examples.keys()))
-                func_name = CodeInconsistencyHumanEvalHelper.extract_func_name_from_example(example)   
+                mutated_sol = CodeMutator.mutate_for_to_while(source = full_sol, input_metadata=input_metadata)                
 
             elif mutation_type == FOR2ENUMERATE:
                 mutated_sol = CodeMutator.mutate_for_to_enumerate(source = full_sol)
-                example = random.choice(list(examples.keys()))
-                func_name = CodeInconsistencyHumanEvalHelper.extract_func_name_from_example(example)   
-
+                
             elif mutation_type == SEQUENTIAL_MUTATION or mutation_type == RANDOM_MUTATION:
                 func_names, var_names = CodeMutator.obtain_key_info_from_code(full_sol)
                 mutated_sol, examples, qn_desc, mutation_rename_map = CodeMutator.mutate_variable_names(
@@ -71,29 +95,35 @@ class CodeMutator:
                 raise InvalidMutationTypeError(mutation_type= mutation_type, allowed_types=CodeMutator.mutation_types)
         except Exception as e:
             raise e
-        
         ## Checking if the mutated solution is identical to the original solution
+
+        # print(mutation_type)
+        # print(CodeMutator.standardize_program(mutated_sol))
+        # print(CodeMutator.standardize_program(full_sol))
         try:
-            assert mutated_sol != full_sol.strip()
+            if mutation_type in (FOR2ENUMERATE, FOR2WHILE):
+                assert CodeMutator.standardize_program(mutated_sol) != CodeMutator.standardize_program(full_sol)
         except:
+
             raise IdenticalMutationError()
+        
         
         ## Checking if the mutated solution still passes the check function
         try:
-            namespace = {}
-            exec(mutated_sol, namespace)
+            multiprocessing_queue = multiprocessing.Queue()
+            verify_answer_process = multiprocessing.Process(target= run_llm_answer, args = (mutated_sol, output_args, input_args, func_name, multiprocessing_queue))
+            verify_answer_process.start()
 
-            sig = inspect.signature(namespace[func_name])
-
-            test_input = input_args
-            expected_output = output_args
-
-            if len(sig.parameters) > 1 and isinstance(test_input, list):
-                assert namespace[func_name](*test_input) == expected_output
-
-            else:
-                assert namespace[func_name](test_input) == expected_output
-
+            verify_answer_process.join(timeout=timeout)
+            if verify_answer_process.is_alive():
+                verify_answer_process.kill()
+                verify_answer_process.join()
+                raise RuntimeError()
+            
+            if not multiprocessing_queue.empty():
+                error = multiprocessing_queue.get()
+                raise error
+            
             mutated_dict['full_sol'] = mutated_sol
         except Exception as e:
             raise MutationCheckFailedError()

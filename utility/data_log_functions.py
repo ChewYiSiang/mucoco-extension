@@ -55,7 +55,7 @@ class DataLogHelper:
         # unmatched_ids = set()           # set storing all task_ids that did not have a match
         log1_inconsistencies = 0        # inconsistencies from log1
         log2_inconsistencies = 0        # inconsistencies from log2
-
+        tot = 0                         # union between tasks solved correctly in both logs
 
         ## Checking for inconsistencies between both logs
         for idx in range(log1.shape[0]):
@@ -75,10 +75,12 @@ class DataLogHelper:
             log1_result = log1_data['failure_type']
             log2_result = log2_data['failure_type']
 
-            if (isinstance(log1_result, float) and not isinstance(log2_result, float)):
-                log2_inconsistencies +=1
-            elif (isinstance(log2_result, float) and not isinstance(log1_result, float)):
-                log1_inconsistencies +=1
+            if isinstance(log1_result, float) or isinstance(log2_result, float):
+                tot += 1
+                if not isinstance(log2_result, float):
+                    log2_inconsistencies +=1
+                elif not isinstance(log1_result, float):
+                    log1_inconsistencies +=1
 
         ## Checking if log1 have any remaining entries. This is not used now, but could come in handy in the future.
         # if log1.shape[0] > 0:
@@ -92,4 +94,4 @@ class DataLogHelper:
         #         task = log2.loc[idx]
         #         unmatched_ids.add(task["task_id"])
 
-        return log1_inconsistencies, log2_inconsistencies
+        return f"{log1_inconsistencies}/{tot}", f"{log2_inconsistencies}/{tot}"
