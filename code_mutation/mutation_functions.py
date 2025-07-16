@@ -5,11 +5,12 @@ import inspect
 import random
 import string
 import re
-from code_mutation.ast_mutation import ASTNodeTransformers
+from ast_mutation import ASTNodeTransformers
 from code_inconsistency.utility.humaneval_functions import CodeInconsistencyHumanEvalHelper
 
 FOR2WHILE = "for2while"
 FOR2ENUMERATE = "for2enumerate"
+DEMORGAN = "demorgan"
 RANDOM_MUTATION = "random"
 SEQUENTIAL_MUTATION = "sequential"
 
@@ -17,6 +18,7 @@ def run_llm_answer(mutated_sol: str, expected_output: str, test_input:Any, func_
         namespace = {}
 
         try:
+            # Execute the mutated code in isolated namespace
             exec(mutated_sol, namespace)
             sig = inspect.signature(namespace[func_name])
 
@@ -28,7 +30,9 @@ def run_llm_answer(mutated_sol: str, expected_output: str, test_input:Any, func_
             mp_queue.put(e)
 
 class CodeMutator:
-    mutation_types = [FOR2ENUMERATE, FOR2WHILE, RANDOM_MUTATION, SEQUENTIAL_MUTATION]
+    # Main class for applying various types of code mutations while preserving functionality.
+    
+    mutation_types = [FOR2ENUMERATE, FOR2WHILE, DEMORGAN, RANDOM_MUTATION, SEQUENTIAL_MUTATION]
 
     @classmethod
     def code_masking(original_code : str, mask_type : List[str] = ["var"]) -> str:
@@ -78,6 +82,9 @@ class CodeMutator:
             elif mutation_type == FOR2ENUMERATE:
                 mutated_sol = CodeMutator.mutate_for_to_enumerate(source = full_sol)
                 
+            elif mutation_type == DEMORGAN:
+                mutated_sol = CodeMutator.mutate_demorgan(source = full_sol)
+                
             elif mutation_type == SEQUENTIAL_MUTATION or mutation_type == RANDOM_MUTATION:
                 func_names, var_names = CodeMutator.obtain_key_info_from_code(full_sol)
                 mutated_sol, examples, qn_desc, mutation_rename_map = CodeMutator.mutate_variable_names(
@@ -101,7 +108,7 @@ class CodeMutator:
         # print(CodeMutator.standardize_program(mutated_sol))
         # print(CodeMutator.standardize_program(full_sol))
         try:
-            if mutation_type in (FOR2ENUMERATE, FOR2WHILE):
+            if mutation_type in (FOR2ENUMERATE, FOR2WHILE, DEMORGAN):
                 assert CodeMutator.standardize_program(mutated_sol) != CodeMutator.standardize_program(full_sol)
         except:
 
@@ -255,6 +262,24 @@ class CodeMutator:
         except Exception as e:
             raise MutationFailedError(error = e)
 
+        ast.fix_missing_locations(mutated_source)
+        mutated_code = ast.unparse(mutated_source)
+        return mutated_code
+    
+    @staticmethod
+    def mutate_demorgan(
+        source: str
+    ) -> str:
+        try: 
+            tree = ast.parse(source)
+        except IndentationError:
+            source += "\n" + "    pass"
+            tree = ast.parse(source)
+        try: 
+            mutated_source = ASTNodeTransformers.DeMorganTransformer().visit(tree)
+        except Exception as e:
+            raise MutationFailedError(error = e)
+        
         ast.fix_missing_locations(mutated_source)
         mutated_code = ast.unparse(mutated_source)
         return mutated_code
