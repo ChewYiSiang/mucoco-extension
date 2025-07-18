@@ -169,11 +169,11 @@ class LLMConsistencyTester(CodeGenerationTester):
 
             return task_pass_count
         
-        # except Exception as e:
-        #     print(type(e))
-        #     print(e)
-        #     print(task_id)
-        #     return task_pass_count
+        except Exception as e:
+            print(type(e))
+            print(e)
+            print(task_id)
+            return task_pass_count
         
         except KeyboardInterrupt:
             print(task_id)

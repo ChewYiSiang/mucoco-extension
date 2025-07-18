@@ -7,7 +7,7 @@ import string
 import traceback
 import sys
 import re
-from code_mutation.ast_mutation import ASTNodeTransformers
+from code_mutation.ast_mutation import ASTNodeHelper
 from code_inconsistency.utility.humaneval_functions import CodeInconsistencyHumanEvalHelper
 
 FOR2WHILE = "for2while"
@@ -27,8 +27,7 @@ def run_llm_answer(mutated_sol: str, expected_output: str, test_input:Any, func_
             else:
                 assert namespace[func_name](test_input) == expected_output
         except Exception as e:
-            error_line_no = traceback.extract_tb(sys.exc_info()[2])[-1].lineno
-            mp_queue.put((e,error_line_no))
+            mp_queue.put(e)
 
 class CodeMutator:
     mutation_types = [FOR2ENUMERATE, FOR2WHILE, RANDOM_MUTATION, SEQUENTIAL_MUTATION]
@@ -67,9 +66,7 @@ class CodeMutator:
             raise RuntimeError()
         
         if not multiprocessing_queue.empty():
-            return multiprocessing_queue.get()
-        else:
-            return True
+            raise multiprocessing_queue.get()
 
     @staticmethod
     def mutate_for_code_inconsistency_test(
@@ -85,10 +82,8 @@ class CodeMutator:
             'examples': examples,
             'qn_desc' : qn_desc
         }
-        
-        if mutation_type == None:
-            return mutated_dict
-        mutation_type = mutation_type.strip()
+        # Removing any whitespaces that could lead to a false equivalence
+        mutation_type = mutation_type.strip() if isinstance(mutation_type, str) else mutation_type
 
         example = random.choice(list(examples.keys()))
         func_name = CodeInconsistencyHumanEvalHelper.extract_func_name_from_example(example)
@@ -102,7 +97,9 @@ class CodeMutator:
         try:
             if mutation_type == FOR2WHILE:
                 input_metadata = CodeInconsistencyHumanEvalHelper.extract_input_metadata(examples = examples, qn = full_sol)
-                mutated_sol = CodeMutator.mutate_for_to_while(source = tree, input_metadata=input_metadata)                
+                variable_metadata = CodeMutator.obtain_variable_types(tree)
+                merged_metadata = input_metadata | variable_metadata
+                mutated_sol = CodeMutator.mutate_for_to_while(source = tree, input_metadata=merged_metadata)                
 
             elif mutation_type == FOR2ENUMERATE:
                 mutated_sol = CodeMutator.mutate_for_to_enumerate(source = tree)
@@ -119,7 +116,11 @@ class CodeMutator:
                         )
                 func_name = mutation_rename_map[func_name]
                 mutated_dict['examples'] = examples
-                mutated_dict['qn_desc'] = qn_desc            
+                mutated_dict['qn_desc'] = qn_desc        
+
+            elif mutation_type == None:
+                mutated_sol = CodeMutator.parse_through_ast(tree)
+
             else:
                 raise InvalidMutationTypeError(mutation_type= mutation_type, allowed_types=CodeMutator.mutation_types)
         except Exception as e:
@@ -133,20 +134,39 @@ class CodeMutator:
             if mutation_type in (FOR2ENUMERATE, FOR2WHILE):
                 assert CodeMutator.standardize_program(mutated_sol) != CodeMutator.standardize_program(full_sol)
         except:
-
             raise IdenticalMutationError()
         
         
         ## Checking if the mutated solution still passes the check function
         try:
-            valid_res = CodeMutator.check_solution_validity(mutated_sol, output_args, input_args, func_name)
-            if isinstance(valid_res, tuple):
-                error, error_line_no = valid_res
-                raise error
+            CodeMutator.check_solution_validity(mutated_sol, output_args, input_args, func_name)
             mutated_dict['full_sol'] = mutated_sol
         except Exception:
             raise MutationCheckFailedError()
         return mutated_dict
+    
+    @staticmethod
+    def obtain_variable_types(tree: ast.AST) -> Dict[str, str]: 
+        """
+        This method is used to map variable names to their variable types for ast.Assign nodes.
+        
+        This is required for for2while mutation as the mutator cannot determine between different data types without the necessary context.
+
+        E.g.: n = 10 
+              while i < len(n):            # this line is incorrect and should be while i < n
+        
+        Hence, this supplements the input_metadata input for the code mutator as it provides the necessary context.
+
+        Args:
+            tree (ast.AST): an ast node of any ast.AST type
+
+        Returns: 
+            Dict[str, str]: the fully mapped variable dictionary
+        """
+        node_visitor = ASTNodeHelper.VariableTypeMapperNodeVisitor(metadata_map= {})
+        node_visitor.visit(tree)
+        return node_visitor.metadata_map
+
 
     @staticmethod
     def obtain_key_info_from_code(tree : ast.AST):
@@ -171,6 +191,15 @@ class CodeMutator:
  
         return func_names, var_names
     
+    @staticmethod
+    def parse_through_ast(
+        tree: ast.AST
+    ) -> str:
+        mutated_source = ASTNodeHelper.DummyTransformer().visit(tree)
+        ast.fix_missing_locations(mutated_source)
+        mutated_source = ast.unparse(mutated_source)
+        return mutated_source
+
     @staticmethod
     def mutate_variable_names( 
         tree: ast.AST,
@@ -200,7 +229,7 @@ class CodeMutator:
         else:
             raise ValueError("Invalid type of mutation used")
         
-        var_name_transformer = ASTNodeTransformers.VariableNameTransformer(rename_map=rename_map)
+        var_name_transformer = ASTNodeHelper.VariableNameTransformer(rename_map=rename_map)
         mutated_source = var_name_transformer.visit(tree)
         ast.fix_missing_locations(mutated_source)
         mutated_source = ast.unparse(mutated_source)
@@ -232,7 +261,7 @@ class CodeMutator:
         tree: ast.AST
     ) -> str:
         try: 
-            mutated_source = ASTNodeTransformers.ForToEnumerateTransformer().visit(tree)
+            mutated_source = ASTNodeHelper.ForToEnumerateTransformer().visit(tree)
         except Exception as e:
             raise MutationFailedError(error = e)
         
@@ -243,16 +272,11 @@ class CodeMutator:
     
     @staticmethod
     def mutate_for_to_while(
-        source: str, 
+        tree: ast.AST, 
         input_metadata: Dict[str, str]
     ) -> str:
         try: 
-            tree = ast.parse(source)
-        except IndentationError:
-            source += "\n" + "    pass"
-            tree = ast.parse(source)
-        try: 
-            mutated_source = ASTNodeTransformers.ForToWhileNodeTransformer(input_metadata= input_metadata).visit(tree)
+            mutated_source = ASTNodeHelper.ForToWhileNodeTransformer(input_metadata= input_metadata).visit(tree)
         except Exception as e:
             raise MutationFailedError(error = e)
 

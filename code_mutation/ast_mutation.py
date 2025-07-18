@@ -1,7 +1,92 @@
 import ast
 from typing import Dict
 
-class ASTNodeTransformers:
+class ASTNodeHelper:
+    """
+    This class stores all ast.NodeTransformers or ast.NodeVisitor classes.
+
+    The ast.NodeTransformer(s) stored under this class includes: 
+        - DummyTransformer, VariableNameTransformer, ForToEnumerateTransformer, ForToWhileTransformer, ConditionAugmentationTransformer:
+
+    The ast.NodeVisitor(s) stored under this class includes:
+        - VariableTypeMapperNodeVisitor
+    """
+
+    class DummyTransformer(ast.NodeTransformer):
+        """
+        This class is used to standardise a program into AST syntax.
+
+        For example:
+            original_prog = "x , y = 10, 11"
+            new_prog = DummyTransformer.visit(original_prog)
+            ast.fix_missing_locations(new_prog)
+            print(ast.unparse(new_prog))
+            > x,y = (10, 11)     # brackets are added to encapsulate 10 and 11
+        
+        Running .visit() with this NodeTransformer is necessary as an additional step to filter out tasks that had no meaningful syntactic changes post mutation.
+        """
+        pass
+
+
+    class VariableTypeMapperNodeVisitor(ast.NodeVisitor):
+        """
+        This class is used to map variable names to their respective data types. This class was created to help for2while mutation avoid errors like using len() on an integer variable, which will result in TypeError.
+
+        This is provides NodeTransformers in subsequent mutation steps the necessary contextual metadata for forming the correct mutation types.
+
+        Do note that the metadata_map has to be returned.
+        """
+        def __init__(self, metadata_map: Dict[str, str]):
+            self.metadata_map = metadata_map # initializing the metadata_map
+
+        def obtain_data_type(self, node: ast.AST) -> str | None:
+            """
+            This method is used to obtain the data type of a given node and serves as a helper function for building the metadata_map. 
+            
+            Currently, this method only handles into ast.Constant, ast.Call or ast.Name instances. Any other instances will have None returned.
+
+            Args:
+                node (ast.AST): the ast node
+
+            Returns:
+                str: the data type is returned in string format
+                None: returned if node type is out of scope
+            """
+            ## If statement checking for scenario 1 -> E.g.: i = 10 OR s = "hello"
+            if isinstance(node, ast.Constant):
+                var_type = type(node.value).__name__ # obtaining the variable type in string format
+                return var_type
+            
+            ## If statement checking for scenario 2 -> E.g.: i = len("hello")
+            elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "len":
+                return int.__name__ # int data type returned as len() always returns an integer
+            
+            ## If statement checking for scenario 3 -> E.g.: i = var1
+            #  The if statement also checks if the variable type has already been stored in the metadata_map and retrieves the variable type directly
+            elif isinstance(node, ast.Name) and self.metadata_map.get(node.id, None) is not None:
+                return self.metadata_map[node.id]
+            
+            ## None returned for any out of scope nodes
+            return None
+
+        def visit_Assign(self, node):
+            """
+            This function visits all nodes that are of type ast.Assign.
+
+            ast.Assign nodes refers to nodes where a variable is assigned a value, E.g.: var1 = 10, var2 = "name", var3 = [1,2,3]
+
+            This function only handles cases ...
+            """
+            if len (node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                var_name = node.targets[0].id
+                var_type = self.obtain_data_type(node.value)
+                self.metadata_map[var_name] = var_type
+
+
+
+    class ConditionAugmentationTransformer(ast.NodeTransformer):
+        pass
+
     class VariableNameTransformer(ast.NodeTransformer):
         def __init__(self, rename_map: Dict[str, str]):
             self.rename_map = rename_map
@@ -38,7 +123,18 @@ class ASTNodeTransformers:
             # bool indicating if the iterable is a Name E.g.: for i in list
             # First condition pertains to for i in list
             # second condition pertains to different range functions examples such as: 'for i in range(1,10,5):' or 'for j in range(1,10):'
-            iter_is_var = (isinstance(node.iter, (ast.Name, ast.Subscript)) and isinstance(node.iter.ctx, ast.Load)) or (isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and (node.iter.func.id in ("range", "zip") and len(node.iter.args) > 1))
+            iter_is_var = (
+                (
+                    isinstance(node.iter, (ast.Name, ast.Subscript)) and 
+                    isinstance(node.iter.ctx, ast.Load)
+                )
+                or (
+                    isinstance(node.iter, ast.Call) and 
+                    isinstance(node.iter.func, ast.Name) and 
+                    node.iter.func.id in {"range", "zip", "str"}
+                )
+            )
+
 
 
             if iter_is_func or iter_is_var:
@@ -115,8 +211,7 @@ class ASTNodeTransformers:
             self.input_metadata = input_metadata
 
         def find_iteration(self, node):
-            
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id != 'zip':
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id not in ('zip', 'str'):
                 args = [self.find_arg_iteration(arg) for arg in node.args]
                 return args if len(args) > 1 else args[0]
             elif isinstance(node, ast.Name):
@@ -148,13 +243,11 @@ class ASTNodeTransformers:
                 raise ValueError("The loop target is not a Tuple, hence indicating that for2enumerate failed to mutate correctly.")
 
         def visit_For(self, node):
-            node = ASTNodeTransformers.ForToEnumerateTransformer().visit(node)
+            node = ASTNodeHelper.ForToEnumerateTransformer().visit(node)
             fixed_nodes = [ast.fix_missing_locations(n) for n in node]
             
-            # print(ast.unparse(fixed_nodes[0]))
-
             node = fixed_nodes[-1]
-            self.generic_visit(node)
+            # self.generic_visit(node)
                 
             start = 0               # integer storing the start of the while loop counter
             step = 1                # integer storing the step to increment the counter for each iteration
@@ -167,12 +260,7 @@ class ASTNodeTransformers:
                 raw_func_args = [node.iter]
 
             target_name, ele = self.explore_for_loop_target(node.target)
-
-            # print(target_name, ele)
-            # print(raw_func_args)
-
             func_args = self.find_iteration(raw_func_args)
-            # print(func_args)
             
             ## Updating the start, step, if necessary
             if isinstance(func_args, list):
@@ -183,13 +271,28 @@ class ASTNodeTransformers:
 
             if step < 0:
                 increment = False
+
+            ## Establishing the counter for the while loop
+            #       E.g.: i = 0
+            init_assign = ast.Assign(
+                targets=[ast.Name(id=target_name, ctx=ast.Store())],
+                value= (
+                    ast.Constant(value=start) if isinstance(start, int)                 # if the start is an int like "i = 6" for example
+                    else ast.Name(id=start, ctx=ast.Load()) if isinstance(start, str)   # if the start is a variable name such as "i = n"
+                    else start                                                          # if the staet is anything else such as "i = 1+2"
+                )
+            )
+
+            # updating the input_metadata dict with the new variable assignment
+            self.input_metadata[target_name] = type(start).__name__
             
             ## Setting up the iteration node used in the while loop
             ## The first if condition looks for the following cases:
             ##      ast.BinOp: for i in (3+10)     -> while i < (3+10)
             ##      ast.Call: for i range(len('hello')) -> while i < len('hello')
             ##      ast.Constant: for s in some_string  -> while i < len(some_string)
-            if isinstance(func_args, (ast.BinOp, ast.Call, ast.Constant)) :
+            ## Do note that only ast.Call on 'range' functions are rejected here.
+            if isinstance(func_args, (ast.BinOp, ast.Call, ast.Constant)) and (func_args.func.id not in ("range", "str") if isinstance(func_args, ast.Call) else True):
 
                 ## Filtering out cases where the function call is a zip(func_args).
                 ## The approach to converting them is slightly different.
@@ -217,17 +320,22 @@ class ASTNodeTransformers:
                 else:
                     iter_node = func_args
             
-            ## The second if condition utilizes the metadata of the function input types.
+            ## The second if condition utilizes the metadata of the function input types anf func_args is a declared variable name of int type.
             ## If the input type is of type 'int' -> while i < func_arg
             elif self.input_metadata.get(func_args, None) == int.__name__:
                 iter_node = ast.Name(id = func_args)
+
+            ## The third if condition catches cases where func_args is an integer
+            ## E.g.: while i < 100
+            elif isinstance(func_args, int):
+                iter_node = ast.Constant(value = func_args)
 
             ## Else, all other cases creates the following nodes, such as lists, etc:
             ##  while i < len(func_args)
             else:
                 iter_node = ast.Call(
                     func = ast.Name(id = 'len'),
-                    args= [(ast.Name(str(func_args)) if not isinstance(func_args, ast.Subscript) else func_args)],           # ast.Subscript will be len(func_args[:-1]), while the rest will be len(func_args)
+                    args= [(ast.Name(str(func_args)) if not isinstance(func_args, (ast.Subscript, ast.Call)) else func_args)],           # ast.Subscript will be len(func_args[:-1]), while the rest will be len(func_args)
                     keywords=[]
                 )
 
@@ -237,17 +345,6 @@ class ASTNodeTransformers:
                 left = ast.Name(id = target_name, ctx = ast.Store()),
                 ops= [ast.Lt()] if increment is True else [ast.Gt()],
                 comparators= [iter_node]
-            )
-            
-            ## Establishing the counter for the while loop
-            #       E.g.: i = 0
-            init_assign = ast.Assign(
-                targets=[ast.Name(id=target_name, ctx=ast.Store())],
-                value= (
-                    ast.Constant(value=start) if isinstance(start, int)                 # if the start is an int like "i = 6" for example
-                    else ast.Name(id=start, ctx=ast.Load()) if isinstance(start, str)   # if the start is a variable name such as "i = n"
-                    else start                                                          # if the staet is anything else such as "i = 1+2"
-                )
             )
 
             ## Incrementing the counter variable in the while loop
@@ -261,8 +358,12 @@ class ASTNodeTransformers:
             ## Setting up the node for new element assignment
             #       E.g.: new_ele = list[idx]
             if not isinstance(func_args, (list, type(None))) and isinstance(ele, str) and not ele.startswith('loop_idx'):
-                if isinstance(raw_func_args[0], ast.Call):
+                if isinstance(raw_func_args[0], ast.Call) and isinstance(raw_func_args[0].func, ast.Name) and raw_func_args[0].func.id not in ("str"):
                     val = ast.Name(id = target_name)
+
+                    if self.input_metadata.get(target_name, None) is not None:
+                        self.input_metadata[ele] = self.input_metadata[target_name]
+
                 else: 
                     val = ast.Subscript(
                             value = raw_func_args[0],
