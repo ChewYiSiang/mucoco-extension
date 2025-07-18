@@ -1,0 +1,4 @@
+for2while mutation
+
+- We need some way to iterate through each variable and save the meta data (72,79,93,126)
+    - Perhaps an approach is to catch this specific error, then change the while loop conditions when it occurs

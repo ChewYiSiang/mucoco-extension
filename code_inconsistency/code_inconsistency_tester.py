@@ -102,6 +102,7 @@ class LLMConsistencyTester(CodeGenerationTester):
                     output_metadata= output_metadata,
                     examples = examples
                     )
+                
                 ## Processing of output args and metadata
                 output_args = ast.literal_eval(output_args) if output_metadata != str.__name__ else output_args
                 
@@ -127,7 +128,7 @@ class LLMConsistencyTester(CodeGenerationTester):
                         full_sol = mutated_dict['full_sol']
                         qn_desc = mutated_dict['qn_desc']
                         examples = mutated_dict['examples']
-
+                        
                 except Exception as e:
                     log_entry['failure_type'] = f"{type(e).__name__} > {e}"
                     LLMConsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)

@@ -4,6 +4,8 @@ import multiprocessing
 import inspect
 import random
 import string
+import traceback
+import sys
 import re
 from code_mutation.ast_mutation import ASTNodeTransformers
 from code_inconsistency.utility.humaneval_functions import CodeInconsistencyHumanEvalHelper
@@ -25,7 +27,8 @@ def run_llm_answer(mutated_sol: str, expected_output: str, test_input:Any, func_
             else:
                 assert namespace[func_name](test_input) == expected_output
         except Exception as e:
-            mp_queue.put(e)
+            error_line_no = traceback.extract_tb(sys.exc_info()[2])[-1].lineno
+            mp_queue.put((e,error_line_no))
 
 class CodeMutator:
     mutation_types = [FOR2ENUMERATE, FOR2WHILE, RANDOM_MUTATION, SEQUENTIAL_MUTATION]
@@ -44,6 +47,29 @@ class CodeMutator:
         for idx, l in enumerate(cleaned_lines):
             cleaned_lines[idx] = l.replace(" ", "")
         return "\n".join(cleaned_lines)
+    
+    @staticmethod
+    def check_solution_validity(
+        program:str,
+        output_args:str, 
+        input_args: Any, 
+        func_name: str, 
+    ):
+        timeout = 5
+        multiprocessing_queue = multiprocessing.Queue()
+        verify_answer_process = multiprocessing.Process(target= run_llm_answer, args = (program, output_args, input_args, func_name, multiprocessing_queue))
+        verify_answer_process.start()
+
+        verify_answer_process.join(timeout=timeout)
+        if verify_answer_process.is_alive():
+            verify_answer_process.kill()
+            verify_answer_process.join()
+            raise RuntimeError()
+        
+        if not multiprocessing_queue.empty():
+            return multiprocessing_queue.get()
+        else:
+            return True
 
     @staticmethod
     def mutate_for_code_inconsistency_test(
@@ -64,24 +90,27 @@ class CodeMutator:
             return mutated_dict
         mutation_type = mutation_type.strip()
 
-        timeout = 5
-
-
         example = random.choice(list(examples.keys()))
-        func_name = CodeInconsistencyHumanEvalHelper.extract_func_name_from_example(example) 
+        func_name = CodeInconsistencyHumanEvalHelper.extract_func_name_from_example(example)
 
+        try: 
+            tree = ast.parse(full_sol)
+        except IndentationError:
+            source += "\n" + "    pass"
+            tree = ast.parse(full_sol)
+        
         try:
             if mutation_type == FOR2WHILE:
                 input_metadata = CodeInconsistencyHumanEvalHelper.extract_input_metadata(examples = examples, qn = full_sol)
-                mutated_sol = CodeMutator.mutate_for_to_while(source = full_sol, input_metadata=input_metadata)                
+                mutated_sol = CodeMutator.mutate_for_to_while(source = tree, input_metadata=input_metadata)                
 
             elif mutation_type == FOR2ENUMERATE:
-                mutated_sol = CodeMutator.mutate_for_to_enumerate(source = full_sol)
+                mutated_sol = CodeMutator.mutate_for_to_enumerate(source = tree)
                 
             elif mutation_type == SEQUENTIAL_MUTATION or mutation_type == RANDOM_MUTATION:
-                func_names, var_names = CodeMutator.obtain_key_info_from_code(full_sol)
+                func_names, var_names = CodeMutator.obtain_key_info_from_code(tree)
                 mutated_sol, examples, qn_desc, mutation_rename_map = CodeMutator.mutate_variable_names(
-                            source=full_sol, 
+                            tree=tree, 
                             qn_desc= qn_desc,
                             examples= examples,
                             func_names=func_names, 
@@ -110,36 +139,20 @@ class CodeMutator:
         
         ## Checking if the mutated solution still passes the check function
         try:
-            multiprocessing_queue = multiprocessing.Queue()
-            verify_answer_process = multiprocessing.Process(target= run_llm_answer, args = (mutated_sol, output_args, input_args, func_name, multiprocessing_queue))
-            verify_answer_process.start()
-
-            verify_answer_process.join(timeout=timeout)
-            if verify_answer_process.is_alive():
-                verify_answer_process.kill()
-                verify_answer_process.join()
-                raise RuntimeError()
-            
-            if not multiprocessing_queue.empty():
-                error = multiprocessing_queue.get()
+            valid_res = CodeMutator.check_solution_validity(mutated_sol, output_args, input_args, func_name)
+            if isinstance(valid_res, tuple):
+                error, error_line_no = valid_res
                 raise error
-            
             mutated_dict['full_sol'] = mutated_sol
-        except Exception as e:
+        except Exception:
             raise MutationCheckFailedError()
         return mutated_dict
 
     @staticmethod
-    def obtain_key_info_from_code(code : str):
+    def obtain_key_info_from_code(tree : ast.AST):
         main_func = set()
         func_names = []
         var_names = []
-
-        try: 
-            tree = ast.parse(code)
-        except IndentationError:
-            code += "\n" + "    pass"
-            tree = ast.parse(code)
 
         for node in tree.body:
             if isinstance(node, ast.FunctionDef):
@@ -160,7 +173,7 @@ class CodeMutator:
     
     @staticmethod
     def mutate_variable_names( 
-        source: str,
+        tree: ast.AST,
         qn_desc: str,
         examples: List[str],
         func_names: List[str],
@@ -186,13 +199,6 @@ class CodeMutator:
                 rename_map[orig] = new_name
         else:
             raise ValueError("Invalid type of mutation used")
-    
-        # 3) Apply renamer to the source code
-        try: 
-            tree = ast.parse(source)
-        except IndentationError:
-            source += "\n" + "    pass"
-            tree = ast.parse(source)
         
         var_name_transformer = ASTNodeTransformers.VariableNameTransformer(rename_map=rename_map)
         mutated_source = var_name_transformer.visit(tree)
@@ -223,13 +229,8 @@ class CodeMutator:
     
     @staticmethod
     def mutate_for_to_enumerate(
-        source: str
+        tree: ast.AST
     ) -> str:
-        try: 
-            tree = ast.parse(source)
-        except IndentationError:
-            source += "\n" + "    pass"
-            tree = ast.parse(source)
         try: 
             mutated_source = ASTNodeTransformers.ForToEnumerateTransformer().visit(tree)
         except Exception as e:
@@ -258,6 +259,7 @@ class CodeMutator:
         ast.fix_missing_locations(mutated_source)
         mutated_code = ast.unparse(mutated_source)
         return mutated_code
+
 
 class MutationError(Exception):
     """Base class for mutation-related errors."""
