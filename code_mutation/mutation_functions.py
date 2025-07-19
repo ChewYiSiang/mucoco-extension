@@ -6,6 +6,7 @@ import random
 import string
 import traceback
 import sys
+import copy
 import re
 from code_mutation.ast_mutation import ASTNodeHelper
 from code_inconsistency.utility.humaneval_functions import CodeInconsistencyHumanEvalHelper
@@ -17,15 +18,14 @@ SEQUENTIAL_MUTATION = "sequential"
 
 def run_llm_answer(mutated_sol: str, expected_output: str, test_input:Any, func_name: str, mp_queue = multiprocessing.Queue):
         namespace = {}
-
         try:
             exec(mutated_sol, namespace)
             sig = inspect.signature(namespace[func_name])
 
             if len(sig.parameters) > 1 and isinstance(test_input, list):
-                assert namespace[func_name](*test_input) == expected_output
+                assert expected_output ==  namespace[func_name](*test_input)
             else:
-                assert namespace[func_name](test_input) == expected_output
+                assert expected_output == namespace[func_name](test_input) 
         except Exception as e:
             mp_queue.put(e)
 
@@ -64,7 +64,7 @@ class CodeMutator:
             verify_answer_process.kill()
             verify_answer_process.join()
             raise RuntimeError()
-        
+
         if not multiprocessing_queue.empty():
             raise multiprocessing_queue.get()
 
@@ -99,7 +99,7 @@ class CodeMutator:
                 input_metadata = CodeInconsistencyHumanEvalHelper.extract_input_metadata(examples = examples, qn = full_sol)
                 variable_metadata = CodeMutator.obtain_variable_types(tree)
                 merged_metadata = input_metadata | variable_metadata
-                mutated_sol = CodeMutator.mutate_for_to_while(source = tree, input_metadata=merged_metadata)                
+                mutated_sol = CodeMutator.mutate_for_to_while(tree = tree, input_metadata=merged_metadata)                
 
             elif mutation_type == FOR2ENUMERATE:
                 mutated_sol = CodeMutator.mutate_for_to_enumerate(source = tree)
@@ -140,6 +140,7 @@ class CodeMutator:
         ## Checking if the mutated solution still passes the check function
         try:
             CodeMutator.check_solution_validity(mutated_sol, output_args, input_args, func_name)
+
             mutated_dict['full_sol'] = mutated_sol
         except Exception:
             raise MutationCheckFailedError()

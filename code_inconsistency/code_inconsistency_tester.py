@@ -6,7 +6,7 @@ from typing import Callable, Dict, Any
 from tqdm import tqdm
 import time
 import ast
-
+import copy
 
 
 class LLMConsistencyTester(CodeGenerationTester):
@@ -77,7 +77,6 @@ class LLMConsistencyTester(CodeGenerationTester):
                 output_args = test_outputs['args']                  # test output args
                 output_metadata = test_outputs['metadata']          # test output metadata
                 
-
                 if output_metadata == type(None).__name__:
                     output_metadata = "type(None)"
                 if not isinstance(output_args, str) and not isinstance(eval(str(output_args)), eval(output_metadata)):
@@ -96,12 +95,13 @@ class LLMConsistencyTester(CodeGenerationTester):
                 ## Sanity Check to ensure that the complete solution passes the check functions
                 check_soln_validity = CodeInconsistencyHumanEvalHelper.check_database_answer(
                     full_sol= full_sol,
-                    input_args=input_args,
+                    input_args=copy.deepcopy(input_args),
                     input_metadata=input_metadata,
                     output_args= output_args,
                     output_metadata= output_metadata,
                     examples = examples
                     )
+                
                 
                 ## Processing of output args and metadata
                 output_args = ast.literal_eval(output_args) if output_metadata != str.__name__ else output_args
@@ -121,7 +121,7 @@ class LLMConsistencyTester(CodeGenerationTester):
                             full_sol = full_sol,
                             examples= examples,
                             qn_desc= qn_desc,
-                            input_args= input_args,
+                            input_args= copy.deepcopy(input_args),
                             output_args= output_args
                         )
 

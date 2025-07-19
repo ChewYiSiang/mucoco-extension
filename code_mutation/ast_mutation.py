@@ -66,16 +66,21 @@ class ASTNodeHelper:
             elif isinstance(node, ast.Name) and self.metadata_map.get(node.id, None) is not None:
                 return self.metadata_map[node.id]
             
-            ## None returned for any out of scope nodes
+            ## None returned for nodes out of the scope of this method
             return None
 
-        def visit_Assign(self, node):
+        def visit_Assign(self, node: ast.AST) -> None:
             """
-            This function visits all nodes that are of type ast.Assign.
+            This method visits all nodes that are of type ast.Assign.
 
             ast.Assign nodes refers to nodes where a variable is assigned a value, E.g.: var1 = 10, var2 = "name", var3 = [1,2,3]
 
-            This function only handles cases ...
+            This method only handles cases where a single variable is assigned at a time and if the variable is named. 
+
+            The variable type is extracted using obtain_data_type() and stored in the metadata map.
+
+            Args:
+                node 
             """
             if len (node.targets) == 1 and isinstance(node.targets[0], ast.Name):
                 var_name = node.targets[0].id
@@ -247,7 +252,6 @@ class ASTNodeHelper:
             fixed_nodes = [ast.fix_missing_locations(n) for n in node]
             
             node = fixed_nodes[-1]
-            # self.generic_visit(node)
                 
             start = 0               # integer storing the start of the while loop counter
             step = 1                # integer storing the step to increment the counter for each iteration
