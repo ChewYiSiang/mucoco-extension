@@ -41,7 +41,7 @@ class CodeInconsistencyPromptTemplate(PromptTemplate):
         """)
         return prompt
     
-    def few_show_prompt() -> str:
+    def few_shot_prompt() -> str:
         prompt = textwrap.dedent("""
             # You are given a code snippet, a description of the code, the input and a few examples. Return the expected output in your answer. You may use the examples to determine the expected output.
             
