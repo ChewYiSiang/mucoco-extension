@@ -3,6 +3,7 @@ from typing import Tuple, Any, List
 import ast
 
 class DataLogHelper:
+    @staticmethod
     def compare_code_generation_dataframe_results(log1: pd.DataFrame, log2: pd.DataFrame) -> Tuple[int, int]:
         """
         This function is used to compare between two pd dataframes containing the logs of two comparable code generation runs and returns any inconsistencies found between the two logs.
@@ -75,7 +76,7 @@ class DataLogHelper:
             log1_result = log1_data['failure_type']
             log2_result = log2_data['failure_type']
 
-            if isinstance(log1_result, float) or isinstance(log2_result, float):
+            if (isinstance(log1_result, float) or isinstance(log2_result, float)) and "IdenticalMutationError" not in str(log1_result) and "IdenticalMutationError" not in str(log2_result):
                 tot += 1
                 if not isinstance(log2_result, float):
                     log2_inconsistencies +=1
