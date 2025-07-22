@@ -76,7 +76,7 @@ class DataLogHelper:
             log1_result = log1_data['failure_type']
             log2_result = log2_data['failure_type']
 
-            if (isinstance(log1_result, float) or isinstance(log2_result, float)) and "IdenticalMutationError" not in str(log1_result) and "IdenticalMutationError" not in str(log2_result):
+            if (isinstance(log1_result, float) and "AssertionError" in str(log2_result)) or (isinstance(log2_result, float) and "AssertionError" in str(log1_result)) or (isinstance(log1_result, float) and isinstance(log2_result, float)):
                 tot += 1
                 if not isinstance(log2_result, float):
                     log2_inconsistencies +=1

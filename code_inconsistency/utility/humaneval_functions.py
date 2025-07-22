@@ -86,35 +86,35 @@ class CodeInconsistencyHumanEvalHelper(CodeGenerationHumanEvalHelper):
         
         return metadata_dictionary
     
-    @staticmethod
-    def check_database_answer(
-        full_sol: str, 
-        input_args: Any, 
-        input_metadata: List[str], 
-        output_args: Any, 
-        output_metadata: List[str], 
-        examples: Dict[str, str]
-    ) -> bool:
+    # @staticmethod
+    # def check_database_answer(
+    #     full_sol: str, 
+    #     input_args: Any, 
+    #     input_metadata: List[str], 
+    #     output_args: Any, 
+    #     output_metadata: List[str], 
+    #     examples: Dict[str, str]
+    # ) -> bool:
         
-        random_test_case = list(examples.keys())[0]
-        func_name = CodeInconsistencyHumanEvalHelper.extract_func_name_from_example(random_test_case)      
+    #     random_test_case = list(examples.keys())[0]
+    #     func_name = CodeInconsistencyHumanEvalHelper.extract_func_name_from_example(random_test_case)      
 
-        if output_metadata == type(None).__name__:
-            output_metadata = "type(None)"
-        if not eval(output_metadata) == str:
-            output_args = eval(output_args)
+    #     if output_metadata == type(None).__name__:
+    #         output_metadata = "type(None)"
+    #     if not eval(output_metadata) == str:
+    #         output_args = eval(output_args)
 
-        check_soln_validity = CodeInconsistencyHumanEvalHelper.check_input_output(
-            full_sol= full_sol,
-            test_input= input_args,
-            expected_output= output_args,
-            func_name=func_name,
-            input_metadata = input_metadata
-        )
-        if not check_soln_validity:
-            return False
-        else:
-            return True
+    #     check_soln_validity = CodeInconsistencyHumanEvalHelper.check_input_output(
+    #         full_sol= full_sol,
+    #         test_input= input_args,
+    #         expected_output= output_args,
+    #         func_name=func_name,
+    #         input_metadata = input_metadata
+    #     )
+    #     if not check_soln_validity:
+    #         return False
+    #     else:
+    #         return True
 
 if __name__ == "__main__":
 

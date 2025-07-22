@@ -16,7 +16,7 @@ FOR2ENUMERATE = "for2enumerate"
 RANDOM_MUTATION = "random"
 SEQUENTIAL_MUTATION = "sequential"
 
-def run_llm_answer(mutated_sol: str, expected_output: str, test_input:Any, func_name: str, mp_queue = multiprocessing.Queue):
+def run_llm_answer(mutated_sol: str, expected_output: Any, test_input:Any, func_name: str, mp_queue = multiprocessing.Queue):
         namespace = {}
         try:
             exec(mutated_sol, namespace)
@@ -25,7 +25,8 @@ def run_llm_answer(mutated_sol: str, expected_output: str, test_input:Any, func_
             if len(sig.parameters) > 1 and isinstance(test_input, list):
                 assert expected_output ==  namespace[func_name](*test_input)
             else:
-                assert expected_output == namespace[func_name](test_input) 
+                o = namespace[func_name](test_input) 
+                assert o == expected_output
         except Exception as e:
             mp_queue.put(e)
 
@@ -66,7 +67,8 @@ class CodeMutator:
             raise RuntimeError()
 
         if not multiprocessing_queue.empty():
-            raise multiprocessing_queue.get()
+            e = multiprocessing_queue.get()
+            raise e
 
     @staticmethod
     def mutate_for_code_inconsistency_test(
@@ -96,13 +98,14 @@ class CodeMutator:
         
         try:
             if mutation_type == FOR2WHILE:
+
                 input_metadata = CodeInconsistencyHumanEvalHelper.extract_input_metadata(examples = examples, qn = full_sol)
                 variable_metadata = CodeMutator.obtain_variable_types(tree)
                 merged_metadata = input_metadata | variable_metadata
                 mutated_sol = CodeMutator.mutate_for_to_while(tree = tree, input_metadata=merged_metadata)                
 
             elif mutation_type == FOR2ENUMERATE:
-                mutated_sol = CodeMutator.mutate_for_to_enumerate(source = tree)
+                mutated_sol = CodeMutator.mutate_for_to_enumerate(tree = tree)
                 
             elif mutation_type == SEQUENTIAL_MUTATION or mutation_type == RANDOM_MUTATION:
                 func_names, var_names = CodeMutator.obtain_key_info_from_code(tree)
