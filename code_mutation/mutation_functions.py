@@ -152,7 +152,8 @@ class CodeMutator:
             CodeMutator.check_solution_validity(mutated_sol, output_args, input_args, func_name)
 
             mutated_dict['full_sol'] = mutated_sol
-        except Exception:
+        except Exception as e:
+            print(f"DEBUG: Mutation check failed with error: {type(e).__name__}: {e}")
             raise MutationCheckFailedError()
         return mutated_dict
     
@@ -299,19 +300,34 @@ class CodeMutator:
     def mutate_demorgan(
         source: str
     ) -> str:
+        print(f"\n=== DEBUG: ORIGINAL CODE FOR DEMORGAN ===")
+        # Print line by line with numbers
+        for i, line in enumerate(source.split('\n'), 1):
+            print(f"{i:2d}: {line}")
+        print("=" * 50)
+        
         try: 
             tree = ast.parse(source)
         except IndentationError:
             source += "\n" + "    pass"
             tree = ast.parse(source)
         try: 
-            mutated_source = ASTNodeTransformers.DeMorganTransformer().visit(tree)
+            mutated_source = ASTNodeHelper.DeMorganTransformer().visit(tree)
         except Exception as e:
+            print(f"DEBUG: DeMorgan transformation failed: {e}")
             raise MutationFailedError(error = e)
         
         ast.fix_missing_locations(mutated_source)
         mutated_code = ast.unparse(mutated_source)
+        
+        print(f"=== DEBUG: MUTATED CODE FOR DEMORGAN ===")
+        # Print line by line to avoid truncation
+        for i, line in enumerate(mutated_code.split('\n'), 1):
+            print(f"{i:2d}: {line}")
+        print("=" * 50)
+        
         return mutated_code
+
 
 
 class MutationError(Exception):
