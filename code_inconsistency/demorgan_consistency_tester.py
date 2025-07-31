@@ -3,8 +3,10 @@ from tqdm import tqdm
 import copy
 import pandas as pd
 import os
+import ast
 from code_mutation.mutation_functions import CodeMutator
 from code_inconsistency.prompt_templates.prompt_template import CodeInconsistencyPromptTemplate
+from code_inconsistency.utility.humaneval_functions import CodeInconsistencyHumanEvalHelper
 
 
 class DeMorganConsistencyTester:
@@ -47,9 +49,38 @@ class DeMorganConsistencyTester:
             
             test_inputs = qn_sample['input']
             input_args = test_inputs['args']
+            input_metadata = test_inputs['metadata']
             
             test_outputs = qn_sample['output']
             output_args = test_outputs['args']
+            output_metadata = test_outputs['metadata']
+            
+            # Sanity check: Ensure the original solution passes the check function
+            check_soln_validity = CodeInconsistencyHumanEvalHelper.check_database_answer(
+                full_sol=full_sol,
+                input_args=copy.deepcopy(input_args),
+                input_metadata=input_metadata,
+                output_args=output_args,
+                output_metadata=output_metadata,
+                examples=examples
+            )
+            
+            # Processing of output args and metadata  
+            output_args = ast.literal_eval(output_args) if output_metadata != str.__name__ else output_args
+            
+            if check_soln_validity is not True:
+                print(f"⚠️  Skipping {doc_id} - original solution fails sanity check")
+                
+                # Log sanity check failure
+                log_entry = {
+                    "task_id": doc_id,
+                    "prompt": None,
+                    "model_output": None, 
+                    "expected_output": {"args": output_args},
+                    "failure_type": "invalid_full_solution"
+                }
+                DeMorganConsistencyTester.log_into_csv(output_file_path=output_file_path, input_data=log_entry)
+                continue
             
             # Try to apply DeMorgan mutation
             try:
