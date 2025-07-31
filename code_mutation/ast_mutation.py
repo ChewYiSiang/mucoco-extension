@@ -225,17 +225,27 @@ class ASTNodeHelper:
             # BoolOp(op=And(), values=[Name(id='a'), Name(id='b')])
             if isinstance(node.op, ast.And):
                 # Transform: A and B -> not ((not A) or (not B))
-                negated_values = [ast.UnaryOp(op=ast.Not(), operand=val) for val in node.values]
+                negated_values = [self._negate_operand(val) for val in node.values]
                 inner_or = ast.BoolOp(op=ast.Or(), values=negated_values)
                 return ast.UnaryOp(op=ast.Not(), operand=inner_or)
             
             elif isinstance(node.op, ast.Or):
                 # Transform: A or B -> not ((not A) and (not B))
-                negated_values = [ast.UnaryOp(op=ast.Not(), operand=val) for val in node.values]
+                negated_values = [self._negate_operand(val) for val in node.values]
                 inner_and = ast.BoolOp(op=ast.And(), values=negated_values)
                 return ast.UnaryOp(op=ast.Not(), operand=inner_and)
             
             return node
+        
+        def _negate_operand(self, operand):
+            """Helper method to properly negate an operand, wrapping in parentheses when needed."""
+            # For comparison operations, we need to wrap in parentheses to ensure correct precedence
+            if isinstance(operand, ast.Compare):
+                # Create: not (operand)
+                return ast.UnaryOp(op=ast.Not(), operand=operand)
+            else:
+                # For other operations, standard negation is sufficient
+                return ast.UnaryOp(op=ast.Not(), operand=operand)
         
         def visit_UnaryOp(self, node):
             self.generic_visit(node)
@@ -246,12 +256,12 @@ class ASTNodeHelper:
                 
                 if isinstance(operand.op, ast.And):
                     # Transform: not (A and B) -> (not A) or (not B)
-                    negated_values = [ast.UnaryOp(op=ast.Not(), operand=val) for val in operand.values]
+                    negated_values = [self._negate_operand(val) for val in operand.values]
                     return ast.BoolOp(op=ast.Or(), values=negated_values)
                 
                 elif isinstance(operand.op, ast.Or):
                     # Transform: not (A or B) -> (not A) and (not B)
-                    negated_values = [ast.UnaryOp(op=ast.Not(), operand=val) for val in operand.values]
+                    negated_values = [self._negate_operand(val) for val in operand.values]
                     return ast.BoolOp(op=ast.And(), values=negated_values)
             
             # Handle double negation: not not X -> X
