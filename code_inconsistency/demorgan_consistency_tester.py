@@ -154,8 +154,8 @@ class DeMorganConsistencyTester:
         print(f"Total suitable documents: {len(suitable_doc_ids)}")
         print(f"Successfully mutated: {len(test_results)}")
         print(f"Failed to mutate: {len(failed_mutations)}")
-        print(f"Tests passed: {task_pass_count}/{len(test_results)}")
-        print(f"Success rate: {task_pass_count/len(test_results)*100:.1f}%" if len(test_results) > 0 else "N/A")
+        #print(f"Tests passed: {task_pass_count}/{len(test_results)}")
+        #print(f"Success rate: {task_pass_count/len(test_results)*100:.1f}%" if len(test_results) > 0 else "N/A")
         print(f"="*50)
                 
         return task_pass_count
