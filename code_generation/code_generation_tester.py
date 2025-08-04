@@ -1,6 +1,6 @@
 from database import MongoDBHelper
 from llm_models.code_llms import CodeLLM
-from code_generation.utility.humaneval_functions import CodeGenerationHumanEvalHelper
+from code_generation.utility.humaneval_helper import CodeGenerationHumanEvalHelper
 from code_mutation.mutation_functions import CodeMutator
 from typing import Callable, Dict, Any
 from tqdm import tqdm
@@ -44,6 +44,7 @@ class CodeGenerationTester:
             num_tests: int, 
             output_file_path: str,
             prompt_type: str,
+            task_set: str,
             continue_from_task: str = None,
             mutation_type: str = None,
             example_helper: Callable[[Dict[str, str]], str] = None, 
@@ -65,7 +66,7 @@ class CodeGenerationTester:
 
         try:                            # try statement to catch any potential errors arising from using free APIs. These APIs are usually unstable and can crash at any time. 
             for idx in tqdm(range(continue_from, num_tests)):
-                task_id = f"HumanEvalo{idx}"
+                task_id = f"{task_set}o{idx}"
 
                 qn_sample = self.question_database.find_one({"_id": task_id})
 

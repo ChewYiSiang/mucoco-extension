@@ -1,7 +1,7 @@
 import ast
 from typing import Tuple, List, Dict, Any
-from code_generation.utility.humaneval_functions import CodeGenerationHumanEvalHelper
-
+from code_generation.utility.humaneval_helper import CodeGenerationHumanEvalHelper
+import inspect
 
 class CodeInconsistencyHumanEvalHelper(CodeGenerationHumanEvalHelper):
     @staticmethod
@@ -12,11 +12,14 @@ class CodeInconsistencyHumanEvalHelper(CodeGenerationHumanEvalHelper):
         func_name: str, 
         input_metadata: List[str]
     ) -> bool:
+        
         namespace = {}
         try:
             exec(full_sol, namespace)
-            if not isinstance(test_input, int) and len(input_metadata) > 1:
-                # print(1)
+            sig = inspect.signature(namespace[func_name])
+            if test_input is None:
+                assert namespace[func_name]() == expected_output
+            elif not isinstance(test_input, (int)) and len(sig.parameters) > 1:
                 # print(namespace[func_name](*test_input), type(namespace[func_name](*test_input)))
                 # print(expected_output, type(expected_output))
                 assert namespace[func_name](*test_input) == expected_output
@@ -41,8 +44,9 @@ class CodeInconsistencyHumanEvalHelper(CodeGenerationHumanEvalHelper):
         This is especially important for determining the way to mutate for for2while mutations
 
         E.g.: 
-            examples = {'largest_divisor(15)': '5'}
-            extract_input_metadata(examples) == ['int']
+            >>> examples = {'largest_divisor(15)': '5'}
+            >>> extract_input_metadata(examples, qn) == {15: 'int'}
+            True
 
             'int' is returned as the input is an integer 15.
         """
