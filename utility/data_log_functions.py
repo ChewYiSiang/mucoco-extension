@@ -114,11 +114,11 @@ class DataLogHelper:
         #         unmatched_ids.add(task["task_id"])
 
         print(f"\n=== COMPARISON SUMMARY ===")
-        print(f"Total tasks processed: {log1.shape[0] + tot + both_failed + identical_mutation_errors + both_succeeded}")
+        print(f"Total tasks processed: {log1.shape[0]}")
         print(f"Both succeeded: {both_succeeded}")
         print(f"Both failed: {both_failed}")
         print(f"IdenticalMutationError: {identical_mutation_errors}")
-        print(f"Comparable tasks (one succeeded, one failed): {tot}")
+        print(f"Comparable tasks (atleast one succeeded): {tot}")
         print(f"  - Log1 failed, Log2 succeeded: {log1_inconsistencies}")
         print(f"  - Log1 succeeded, Log2 failed: {log2_inconsistencies}")
         total_inconsistencies = log1_inconsistencies + log2_inconsistencies
