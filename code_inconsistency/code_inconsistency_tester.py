@@ -1,13 +1,14 @@
 from code_inconsistency.utility.humaneval_functions import CodeInconsistencyHumanEvalHelper
 from code_generation.code_generation_tester import CodeGenerationTester
+from code_inconsistency.prompt_templates.prompt_template import CodeInconsistencyPromptTemplate
 from code_mutation.mutation_functions import CodeMutator
 from llm_models.code_llms import CodeLLM
+from utility.constants import PromptTypes, LexicalMutations, SyntacticMutations, TaskTypes, CODE_INCONSISTENCY_PROMPT_CONFIG
 from typing import Callable, Dict, Any, List
 from tqdm import tqdm
 import time
 import ast
 import copy
-
 
 class LLMConsistencyTester(CodeGenerationTester):
     def __init__(self, qn_database: str = "HumanEval_Input_Output"):
@@ -18,9 +19,8 @@ class LLMConsistencyTester(CodeGenerationTester):
             return ast.literal_eval(prog)
         except Exception:
             return prog.strip('"').strip("'") if isinstance(prog, str) else prog
-
             
-    def run_code_consistency_test(
+    def _run_code_consistency_test(
             self,
             llm: CodeLLM,
             prompt_helper: Callable[[], str], 
@@ -32,6 +32,7 @@ class LLMConsistencyTester(CodeGenerationTester):
             syntactic_mutation: str = None,
             example_helper: Callable[[Dict[str, str]], str] = None,
             specific_doc_ids: List[str] = None,
+            task_type: str = TaskTypes.OUTPUT_PREDICTION,
     ) -> int:
         
         if prompt_type != 'zero_shot' and example_helper is None:
@@ -108,20 +109,26 @@ class LLMConsistencyTester(CodeGenerationTester):
                     "expected_output": test_outputs,
                     "failure_type": None
                 }
-                                        
-                ## Sanity Check to ensure that the complete solution passes the check functions
-                check_soln_validity = CodeInconsistencyHumanEvalHelper.check_database_answer(
-                    full_sol= full_sol,
-                    input_args=copy.deepcopy(input_args),
-                    input_metadata=input_metadata,
-                    output_args= output_args,
-                    output_metadata= output_metadata,
-                    examples = examples
-                    )
-                
-                
+
+                if prompt_type == PromptTypes.FEW_SHOT and len(examples.keys()) <= 1:
+                    log_entry['failure_type'] = 'InsufficientExamplesError'
+                    LLMConsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
+                    continue
+
+                random_test_case = list(examples.keys())[0]
+                func_name = CodeInconsistencyHumanEvalHelper.extract_func_name_from_example(random_test_case)
+
                 ## Processing of output args and metadata
                 output_args = ast.literal_eval(output_args) if output_metadata != str.__name__ else output_args
+                                        
+                ## Sanity Check to ensure that the complete solution passes the check functions
+                check_soln_validity = CodeInconsistencyHumanEvalHelper.check_input_output(
+                    full_sol= full_sol,
+                    test_input= copy.deepcopy(input_args),
+                    expected_output= output_args,
+                    func_name=func_name,
+                    input_metadata = input_metadata
+                )
                 
                 if check_soln_validity is not True:
                     log_entry['failure_type'] = "invalid_full_solution"
@@ -133,6 +140,7 @@ class LLMConsistencyTester(CodeGenerationTester):
                 ## Handling Task Mutation (If any)
                 try: 
                     for mutation_type in mutation_dict.values():
+
                         mutated_dict = CodeMutator.mutate_for_code_inconsistency_test(
                             mutation_type = mutation_type,
                             full_sol = full_sol,
@@ -160,6 +168,7 @@ class LLMConsistencyTester(CodeGenerationTester):
                     'qn_desc': qn_desc,
                     'full_sol': full_sol,
                     'test_input': f'"{input_args}"' if isinstance(input_args, str) else input_args,
+                    'test_output': f'"{output_args}"' if isinstance(output_args, str) else output_args,
                     'example': prompt_examples if example_helper is not None else None,
                 }
                 log_entry["prompt"] = prompt_template.format(**input_variables)            # storing formatted prompt into database entry
@@ -170,7 +179,10 @@ class LLMConsistencyTester(CodeGenerationTester):
                 log_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
                 ## Running the formatted prompt into the LLM
                 try:
-                    assert ans == output_args
+                    if task_type == TaskTypes.OUTPUT_PREDICTION:
+                        assert ans == output_args
+                    elif task_type == TaskTypes.INPUT_PREDICTION:
+                        assert ans == input_args
                 except Exception as e:
                     if isinstance(e, AssertionError):
                         pass

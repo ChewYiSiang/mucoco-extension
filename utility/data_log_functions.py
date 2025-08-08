@@ -87,7 +87,7 @@ class DataLogHelper:
             # Check if both failed (both are strings, not NaN)
             elif not isinstance(log1_result, float) and not isinstance(log2_result, float):
                 both_failed += 1
-            # Original logic: count all tasks where at least one succeeded
+            # Count tasks where at least one succeeded
             elif isinstance(log1_result, float) or isinstance(log2_result, float):
                 tot += 1
                 # Check if both succeeded (both are NaN/float)
