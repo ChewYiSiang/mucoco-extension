@@ -13,12 +13,14 @@ from code_inconsistency.utility.humaneval_functions import CodeInconsistencyHuma
 
 FOR2WHILE = "for2while"
 FOR2ENUMERATE = "for2enumerate"
+DEMORGAN = "demorgan"
 RANDOM_MUTATION = "random"
 SEQUENTIAL_MUTATION = "sequential"
 
 def run_llm_answer(mutated_sol: str, expected_output: Any, test_input:Any, func_name: str, mp_queue = multiprocessing.Queue):
         namespace = {}
         try:
+            # Execute the mutated code in isolated namespace
             exec(mutated_sol, namespace)
             sig = inspect.signature(namespace[func_name])
 
@@ -31,7 +33,9 @@ def run_llm_answer(mutated_sol: str, expected_output: Any, test_input:Any, func_
             mp_queue.put(e)
 
 class CodeMutator:
-    mutation_types = [FOR2ENUMERATE, FOR2WHILE, RANDOM_MUTATION, SEQUENTIAL_MUTATION]
+    # Main class for applying various types of code mutations while preserving functionality.
+    
+    mutation_types = [FOR2ENUMERATE, FOR2WHILE, DEMORGAN, RANDOM_MUTATION, SEQUENTIAL_MUTATION]
 
     @classmethod
     def code_masking(original_code : str, mask_type : List[str] = ["var"]) -> str:
@@ -42,12 +46,79 @@ class CodeMutator:
         ### Will require a ending step where it executes against the check function
 
     @staticmethod
+    def extract_func_name_from_source(source_code: str) -> str | None:
+        """
+        Extract the main function name from source code by finding the first function definition.
+        
+        Args:
+            source_code: The source code to analyze
+            
+        Returns:
+            str: Function name if found, None otherwise
+        """
+        try:
+            tree = ast.parse(source_code)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef):
+                    return node.name
+        except Exception as e:
+            print(f"DEBUG: Could not parse source code for function name: {e}")
+        return None
+
+    @staticmethod
     def standardize_program(prog: str) -> str:
         cleaned_lines = [l for l in prog.splitlines() if l != ""]
         for idx, l in enumerate(cleaned_lines):
             cleaned_lines[idx] = l.replace(" ", "")
         return "\n".join(cleaned_lines)
     
+    @staticmethod
+    def check_semantic_equivalence(
+        original_code: str,
+        mutated_code: str,
+        input_args: Any,
+        func_name: str
+    ) -> bool:
+        """
+        Check if original and mutated code produce the same output for given input.
+        This is used for semantic-preserving mutations like DeMorgan transformations.
+        
+        Args:
+            original_code: The original source code
+            mutated_code: The mutated source code  
+            input_args: The test input arguments
+            func_name: The function name to test
+            
+        Returns:
+            bool: True if both codes produce identical results
+        """
+        try:
+            # Execute original code
+            orig_namespace = {}
+            exec(original_code, orig_namespace)
+            
+            # Execute mutated code
+            mut_namespace = {}
+            exec(mutated_code, mut_namespace)
+            
+            # Get function signatures
+            orig_sig = inspect.signature(orig_namespace[func_name])
+            mut_sig = inspect.signature(mut_namespace[func_name])
+            
+            # Call both functions with the same input
+            if len(orig_sig.parameters) > 1 and isinstance(input_args, list):
+                orig_result = orig_namespace[func_name](*input_args)
+                mut_result = mut_namespace[func_name](*input_args)
+            else:
+                orig_result = orig_namespace[func_name](input_args) 
+                mut_result = mut_namespace[func_name](input_args)
+            
+            return orig_result == mut_result
+            
+        except Exception as e:
+            print(f"DEBUG: Semantic equivalence check failed: {e}")
+            return False
+
     @staticmethod
     def check_solution_validity(
         program:str,
@@ -88,7 +159,15 @@ class CodeMutator:
         mutation_type = mutation_type.strip() if isinstance(mutation_type, str) else mutation_type
 
         example = random.choice(list(examples.keys()))
-        func_name = CodeInconsistencyHumanEvalHelper.extract_func_name_from_example(example)
+        try:
+            func_name = CodeInconsistencyHumanEvalHelper.extract_func_name_from_example(example)
+        except (ValueError, AttributeError) as e:
+            # Fallback: extract function name directly from the source code
+            print(f"DEBUG: Could not extract function name from example '{example}': {e}")
+            print("DEBUG: Attempting to extract function name from source code...")
+            func_name = CodeMutator.extract_func_name_from_source(full_sol)
+            if not func_name:
+                raise ValueError(f"Could not extract function name from source code or examples")
 
         try: 
             tree = ast.parse(full_sol)
@@ -106,6 +185,12 @@ class CodeMutator:
 
             elif mutation_type == FOR2ENUMERATE:
                 mutated_sol = CodeMutator.mutate_for_to_enumerate(tree = tree)
+                
+            elif mutation_type == DEMORGAN:
+                mutated_sol = CodeMutator.mutate_demorgan(source = full_sol)
+                
+            elif mutation_type == DEMORGAN:
+                mutated_sol = CodeMutator.mutate_demorgan(source = full_sol)
                 
             elif mutation_type == SEQUENTIAL_MUTATION or mutation_type == RANDOM_MUTATION:
                 func_names, var_names = CodeMutator.obtain_key_info_from_code(tree)
@@ -134,7 +219,7 @@ class CodeMutator:
         # print(CodeMutator.standardize_program(mutated_sol))
         # print(CodeMutator.standardize_program(full_sol))
         try:
-            if mutation_type in (FOR2ENUMERATE, FOR2WHILE):
+            if mutation_type in (FOR2ENUMERATE, FOR2WHILE, DEMORGAN):
                 assert CodeMutator.standardize_program(mutated_sol) != CodeMutator.standardize_program(full_sol)
         except:
             raise IdenticalMutationError()
@@ -145,8 +230,27 @@ class CodeMutator:
             CodeMutator.check_solution_validity(mutated_sol, output_args, input_args, func_name)
 
             mutated_dict['full_sol'] = mutated_sol
-        except Exception:
-            raise MutationCheckFailedError()
+        except Exception as e:
+            print(f"DEBUG: Mutation check failed with error: {type(e).__name__}: {e}")
+            
+            # For semantic-preserving mutations like DeMorgan, check if both original and mutated produce the same result
+            if mutation_type == DEMORGAN:
+                try:
+                    print("DEBUG: Checking if original code also fails the same test...")
+                    CodeMutator.check_solution_validity(full_sol, output_args, input_args, func_name)
+                    # If original passes but mutated fails, then it's a real mutation error
+                    raise MutationCheckFailedError()
+                except Exception as orig_e:
+                    print(f"DEBUG: Original code also fails with: {type(orig_e).__name__}: {orig_e}")
+                    # Check if both produce the same result (semantic equivalence)
+                    if CodeMutator.check_semantic_equivalence(full_sol, mutated_sol, input_args, func_name):
+                        print("DEBUG: Original and mutated code produce identical results - accepting mutation")
+                        mutated_dict['full_sol'] = mutated_sol
+                    else:
+                        print("DEBUG: Original and mutated code produce different results - rejecting mutation")
+                        raise MutationCheckFailedError()
+            else:
+                raise MutationCheckFailedError()
         return mutated_dict
     
     @staticmethod
@@ -287,6 +391,39 @@ class CodeMutator:
         ast.fix_missing_locations(mutated_source)
         mutated_code = ast.unparse(mutated_source)
         return mutated_code
+    
+    @staticmethod
+    def mutate_demorgan(
+        source: str
+    ) -> str:
+        print(f"\n=== DEBUG: ORIGINAL CODE FOR DEMORGAN ===")
+        # Print line by line with numbers
+        for i, line in enumerate(source.split('\n'), 1):
+            print(f"{i:2d}: {line}")
+        print("=" * 50)
+        
+        try: 
+            tree = ast.parse(source)
+        except IndentationError:
+            source += "\n" + "    pass"
+            tree = ast.parse(source)
+        try: 
+            mutated_source = ASTNodeHelper.DeMorganTransformer().visit(tree)
+        except Exception as e:
+            print(f"DEBUG: DeMorgan transformation failed: {e}")
+            raise MutationFailedError(error = e)
+        
+        ast.fix_missing_locations(mutated_source)
+        mutated_code = ast.unparse(mutated_source)
+        
+        print(f"=== DEBUG: MUTATED CODE FOR DEMORGAN ===")
+        # Print line by line to avoid truncation
+        for i, line in enumerate(mutated_code.split('\n'), 1):
+            print(f"{i:2d}: {line}")
+        print("=" * 50)
+        
+        return mutated_code
+
 
 
 class MutationError(Exception):
