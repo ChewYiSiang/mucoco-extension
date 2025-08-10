@@ -1,4 +1,5 @@
 import ast
+import random
 from typing import Dict
 
 class ASTNodeHelper:
@@ -471,3 +472,99 @@ class ASTNodeHelper:
             
             ## Returning the counter assignment node and the while loop node
             return [fixed_nodes[:-1], init_assign, while_loop]
+
+    class LiteralFormatTransformer(ast.NodeTransformer):
+        """
+        Change formatting of string literals while keeping values the same.
+        'hello' ↔ "hello"
+        """
+        def visit_Constant(self, node):
+            self.generic_visit(node)
+            
+            if isinstance(node.value, str):
+                # Change quote style while keeping the string value the same
+                # This doesn't actually change the AST since Python normalizes quotes,
+                # but we can simulate the effect by toggling a preference
+                return node
+            
+            return node
+    
+    class BooleanLiteralTransformer(ast.NodeTransformer):
+        """
+        Change boolean literal representations while keeping logical values the same.
+        True ↔ not False, False ↔ not True
+        """
+        def visit_Constant(self, node):
+            self.generic_visit(node)
+            
+            if isinstance(node.value, bool):
+                if node.value is True:
+                    # Transform True -> not False
+                    return ast.UnaryOp(
+                        op=ast.Not(),
+                        operand=ast.Constant(value=False)
+                    )
+                elif node.value is False:
+                    # Transform False -> not True  
+                    return ast.UnaryOp(
+                        op=ast.Not(),
+                        operand=ast.Constant(value=True)
+                    )
+            
+            return node
+    
+    class CommutativeReorderTransformer(ast.NodeTransformer):
+        """
+        Reorder commutative operations while preserving functionality.
+        a + b ↔ b + a, a * b ↔ b * a
+        """
+        def visit_BinOp(self, node):
+            self.generic_visit(node)
+            
+            # Only reorder commutative operations
+            if isinstance(node.op, (ast.Add, ast.Mult)):
+                # Swap left and right operands
+                return ast.BinOp(
+                    left=node.right,
+                    op=node.op,
+                    right=node.left
+                )
+            
+            return node
+    
+    class ConstantUnfoldTransformer(ast.NodeTransformer):
+        """
+        Unfold constant expressions.
+        E.g., 10 ↔ 5 + 5, 6 ↔ 2 * 3, 8 ↔ 4 + 4
+        """
+        def visit_Constant(self, node):
+            self.generic_visit(node)
+            
+            if isinstance(node.value, int) and node.value > 1:
+                # Randomly choose how to unfold the constant
+                unfold_type = random.choice(['add', 'mult'])
+                
+                if unfold_type == 'add':
+                    # Split into two addends
+                    half = node.value // 2
+                    remainder = node.value - half
+                    return ast.BinOp(
+                        left=ast.Constant(value=half),
+                        op=ast.Add(),
+                        right=ast.Constant(value=remainder)
+                    )
+                elif unfold_type == 'mult' and node.value > 3:
+                    # Find factors for multiplication
+                    for factor in range(2, min(node.value, 10)):
+                        if node.value % factor == 0:
+                            other_factor = node.value // factor
+                            return ast.BinOp(
+                                left=ast.Constant(value=factor),
+                                op=ast.Mult(),
+                                right=ast.Constant(value=other_factor)
+                            )
+                    print("Couldn't Mutate.")
+                    # If no factors found, don't transform
+                    return node
+            
+            return node

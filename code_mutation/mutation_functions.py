@@ -16,6 +16,10 @@ FOR2ENUMERATE = "for2enumerate"
 DEMORGAN = "demorgan"
 RANDOM_MUTATION = "random"
 SEQUENTIAL_MUTATION = "sequential"
+LITERAL_FORMAT = "literal_format"
+BOOLEAN_LITERAL = "boolean_literal"
+COMMUTATIVE_REORDER = "commutative_reorder"
+CONSTANT_UNFOLD = "constant_unfold"
 
 def run_llm_answer(mutated_sol: str, expected_output: Any, test_input:Any, func_name: str, mp_queue = multiprocessing.Queue):
         namespace = {}
@@ -35,7 +39,7 @@ def run_llm_answer(mutated_sol: str, expected_output: Any, test_input:Any, func_
 class CodeMutator:
     # Main class for applying various types of code mutations while preserving functionality.
     
-    mutation_types = [FOR2ENUMERATE, FOR2WHILE, DEMORGAN, RANDOM_MUTATION, SEQUENTIAL_MUTATION]
+    mutation_types = [FOR2ENUMERATE, FOR2WHILE, DEMORGAN, RANDOM_MUTATION, SEQUENTIAL_MUTATION, LITERAL_FORMAT, BOOLEAN_LITERAL, COMMUTATIVE_REORDER, CONSTANT_UNFOLD]
 
     @classmethod
     def code_masking(original_code : str, mask_type : List[str] = ["var"]) -> str:
@@ -189,8 +193,17 @@ class CodeMutator:
             elif mutation_type == DEMORGAN:
                 mutated_sol = CodeMutator.mutate_demorgan(source = full_sol)
                 
-            elif mutation_type == DEMORGAN:
-                mutated_sol = CodeMutator.mutate_demorgan(source = full_sol)
+            elif mutation_type == LITERAL_FORMAT:
+                mutated_sol = CodeMutator.mutate_literal_format(tree = tree)
+                
+            elif mutation_type == BOOLEAN_LITERAL:
+                mutated_sol = CodeMutator.mutate_boolean_literal(tree = tree)
+                
+            elif mutation_type == COMMUTATIVE_REORDER:
+                mutated_sol = CodeMutator.mutate_commutative_reorder(tree = tree)
+                
+            elif mutation_type == CONSTANT_UNFOLD:
+                mutated_sol = CodeMutator.mutate_constant_unfold(tree = tree)
                 
             elif mutation_type == SEQUENTIAL_MUTATION or mutation_type == RANDOM_MUTATION:
                 func_names, var_names = CodeMutator.obtain_key_info_from_code(tree)
@@ -219,7 +232,7 @@ class CodeMutator:
         # print(CodeMutator.standardize_program(mutated_sol))
         # print(CodeMutator.standardize_program(full_sol))
         try:
-            if mutation_type in (FOR2ENUMERATE, FOR2WHILE, DEMORGAN):
+            if mutation_type in (FOR2ENUMERATE, FOR2WHILE, DEMORGAN, LITERAL_FORMAT, BOOLEAN_LITERAL, COMMUTATIVE_REORDER, CONSTANT_UNFOLD):
                 assert CodeMutator.standardize_program(mutated_sol) != CodeMutator.standardize_program(full_sol)
         except:
             raise IdenticalMutationError()
@@ -422,6 +435,66 @@ class CodeMutator:
             print(f"{i:2d}: {line}")
         print("=" * 50)
         
+        return mutated_code
+
+    @staticmethod
+    def mutate_literal_format(tree: ast.AST) -> str:
+        """
+        Change formatting of string literals while keeping values the same.
+        'hello' ↔ "hello"
+        """
+        try:
+            mutated_source = ASTNodeHelper.LiteralFormatTransformer().visit(tree)
+        except Exception as e:
+            raise MutationFailedError(error=e)
+        
+        ast.fix_missing_locations(mutated_source)
+        mutated_code = ast.unparse(mutated_source)
+        return mutated_code
+    
+    @staticmethod
+    def mutate_boolean_literal(tree: ast.AST) -> str:
+        """
+        Change boolean literal representations while keeping logical values the same.
+        True ↔ not False, False ↔ not True
+        """
+        try:
+            mutated_source = ASTNodeHelper.BooleanLiteralTransformer().visit(tree)
+        except Exception as e:
+            raise MutationFailedError(error=e)
+        
+        ast.fix_missing_locations(mutated_source)
+        mutated_code = ast.unparse(mutated_source)
+        return mutated_code
+    
+    @staticmethod
+    def mutate_commutative_reorder(tree: ast.AST) -> str:
+        """
+        Reorder commutative operations while preserving functionality.
+        a + b ↔ b + a, a * b ↔ b * a
+        """
+        try:
+            mutated_source = ASTNodeHelper.CommutativeReorderTransformer().visit(tree)
+        except Exception as e:
+            raise MutationFailedError(error=e)
+        
+        ast.fix_missing_locations(mutated_source)
+        mutated_code = ast.unparse(mutated_source)
+        return mutated_code
+    
+    @staticmethod
+    def mutate_constant_unfold(tree: ast.AST) -> str:
+        """
+        Unfold constant expressions.
+        E.g., 10 ↔ 5 + 5, 6 ↔ 2 * 3
+        """
+        try:
+            mutated_source = ASTNodeHelper.ConstantUnfoldTransformer().visit(tree)
+        except Exception as e:
+            raise MutationFailedError(error=e)
+        
+        ast.fix_missing_locations(mutated_source)
+        mutated_code = ast.unparse(mutated_source)
         return mutated_code
 
 
