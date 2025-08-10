@@ -254,8 +254,8 @@ class CodeMutator:
         except Exception as e:
             print(f"DEBUG: Mutation check failed with error: {type(e).__name__}: {e}")
             
-            # For semantic-preserving mutations like DeMorgan, check if both original and mutated produce the same result
-            if mutation_type == DEMORGAN:
+            # For semantic-preserving mutations like DeMorgan and boolean_literal, check if both original and mutated produce the same result
+            if mutation_type in (DEMORGAN, BOOLEAN_LITERAL):
                 try:
                     print("DEBUG: Checking if original code also fails the same test...")
                     CodeMutator.check_solution_validity(full_sol, output_args, input_args, func_name)
