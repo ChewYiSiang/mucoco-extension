@@ -4,7 +4,7 @@ from code_generation.code_generation_tester import CodeGenerationTester
 from code_mutation.mutation_functions import CodeMutator
 from llm_models.code_llms import CodeLLM
 from utility.constants import PromptTypes, LexicalMutations, SyntacticMutations, TaskTypes, CODE_INCONSISTENCY_PROMPT_CONFIG
-from typing import Callable, Dict, Any
+from typing import Callable, Dict, Any, List
 from tqdm import tqdm
 import time
 import ast
@@ -43,21 +43,25 @@ class LLMConsistencyTester(CodeGenerationTester):
     def run_code_consistency_test(
             self,
             prompt_helper: Callable[[], str], 
-            num_tests: int, 
             output_file_path: str,
             prompt_type: str,
             task_set: str,
+            num_tests: int = None,
             continue_from_task: str = None,
             lexical_mutation: str = None,
             syntactic_mutation: str = None,
+            example_helper: Callable[[Dict[str, str]], str] = None,
+            specific_doc_ids: List[str] = None,
             task_type: str = TaskTypes.OUTPUT_PREDICTION,
-            example_helper: Callable[[Dict[str, str]], str] = None, 
     ) -> int:
         # integer storing the number of seconds that the llm should return its answer by
         llm_timeout = 5
                 
         if prompt_type != 'zero_shot' and example_helper is None:
             raise ValueError("A non zero-shot prompt is used, yet no example helper function was given. Add the approrpriate example_helper for this prompt template.")
+        
+        if num_tests is None and specific_doc_ids is None:
+            raise ValueError("Either num_tests or specific_doc_ids must be provided.")
         
         if continue_from_task is not None:
             continue_from = int(continue_from_task.split('TF')[-1])
@@ -74,7 +78,21 @@ class LLMConsistencyTester(CodeGenerationTester):
             if mutation is not None and mutation not in CodeMutator.mutation_types:
                 raise ValueError(f"An invalid type of mutation is used. Only {CodeMutator.mutation_types} type of mutations are valid.")
 
-        num_tests = min(num_tests, self.question_database.count_documents({}) - continue_from)         # ensuring that the number of iterations is lower than max number of documents in the db
+        # Determine which documents to test
+        if specific_doc_ids is not None:
+            # Use specific document IDs
+            if num_tests is not None:
+                test_docs = specific_doc_ids[:num_tests]  # Limit to num_tests if specified
+            else:
+                test_docs = specific_doc_ids  # Use all provided documents
+            print(f"Testing {len(test_docs)} specific documents")
+        else:
+            # Use original sequential approach
+            if num_tests is None:
+                raise ValueError("num_tests must be provided when specific_doc_ids is not used.")
+            num_tests = min(num_tests, self.question_database.count_documents({}) - continue_from)
+            test_docs = [f"HumanEvalTF{idx}" for idx in range(continue_from, continue_from + num_tests)]
+            print(f"Testing documents from HumanEvalTF{continue_from} to HumanEvalTF{continue_from + num_tests - 1}")
 
         task_pass_count = 0             # int variable tracking the number of tasks that have passed
         failed_validity = []            # list storing the test case id that have failed the check functions
@@ -85,6 +103,7 @@ class LLMConsistencyTester(CodeGenerationTester):
 
                 qn_sample = self.question_database.find_one({"_id": task_id})
                 if qn_sample is None:                               # next task if unable to extract the specific qn id from MongoDB
+                    print(f"Document {task_id} not found in database")
                     continue
 
                 prompt_template = prompt_helper()

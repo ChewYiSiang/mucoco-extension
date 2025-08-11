@@ -57,6 +57,11 @@ class DataLogHelper:
         log1_inconsistencies = 0        # inconsistencies from log1
         log2_inconsistencies = 0        # inconsistencies from log2
         tot = 0                         # union between tasks solved correctly in both logs
+        both_failed = 0                 # tasks where both logs failed
+        identical_mutation_errors = 0   # tasks with IdenticalMutationError
+        both_succeeded = 0              # tasks where both logs succeeded
+
+        print(f"Starting comparison of {log1.shape[0]} tasks...")
 
         ## Checking for inconsistencies between both logs
         for idx in range(log1.shape[0]):
@@ -79,8 +84,13 @@ class DataLogHelper:
 
             if (isinstance(log1_result, float) and not isinstance(log2_result, float)) or (isinstance(log2_result, float) and not isinstance(log1_result, float)) or (isinstance(log1_result, float) and isinstance(log2_result, float)):
                 tot += 1
-                if not isinstance(log2_result, float):
-                    log2_inconsistencies +=1
+                # Check if both succeeded (both are NaN/float)
+                if isinstance(log1_result, float) and isinstance(log2_result, float):
+                    both_succeeded += 1
+                # One succeeded, one failed - this is an inconsistency
+                elif not isinstance(log2_result, float):
+                    log2_inconsistencies += 1
+                    print(f"Task {task_id}: log1 succeeded, log2 failed ({log2_result})")
                 elif not isinstance(log1_result, float):
                     log1_inconsistencies +=1
 
@@ -96,5 +106,16 @@ class DataLogHelper:
         #     for idx in range(log2.shape[0]):
         #         task = log2.loc[idx]
         #         unmatched_ids.add(task["task_id"])
+
+        print(f"\n=== COMPARISON SUMMARY ===")
+        print(f"Total tasks processed: {log1.shape[0]}")
+        print(f"Both succeeded: {both_succeeded}")
+        print(f"Both failed: {both_failed}")
+        print(f"IdenticalMutationError: {identical_mutation_errors}")
+        print(f"Comparable tasks (atleast one succeeded): {tot}")
+        print(f"  - Log1 failed, Log2 succeeded: {log1_inconsistencies}")
+        print(f"  - Log1 succeeded, Log2 failed: {log2_inconsistencies}")
+        total_inconsistencies = log1_inconsistencies + log2_inconsistencies
+        print(f"Total inconsistencies: {total_inconsistencies}/{tot}")
 
         return f"{log1_inconsistencies}/{tot}", f"{log2_inconsistencies}/{tot}"
