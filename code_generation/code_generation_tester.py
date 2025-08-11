@@ -1,23 +1,17 @@
 from database import MongoDBHelper
 from llm_models.code_llms import CodeLLM
-from code_generation.utility.humaneval_functions import CodeGenerationHumanEvalHelper
+from code_generation.utility.humaneval_helper import CodeGenerationHumanEvalHelper
+from code_generation.utility.bigcodebench_helper import CodeGenerationBigCodeBenchHelper
 from code_mutation.mutation_functions import CodeMutator
 from typing import Callable, Dict, Any
 from tqdm import tqdm
 import os
+import ast
 import random
 import time
 import pandas as pd
 import multiprocessing
-
-def run_llm_answer(processed_output: str, test_function: str, func_name: str, mp_queue = multiprocessing.Queue):
-        namespace = {}
-        try:
-            exec(processed_output, namespace)
-            exec(test_function, namespace)
-            namespace["check"](namespace[func_name])
-        except Exception as e:
-            mp_queue.put(e)
+import shutil
 
 class CodeGenerationTester:
     def __init__(self, qn_database: str = "HumanEval_Open_Ended"):
@@ -44,6 +38,7 @@ class CodeGenerationTester:
             num_tests: int, 
             output_file_path: str,
             prompt_type: str,
+            task_set: str,
             continue_from_task: str = None,
             mutation_type: str = None,
             example_helper: Callable[[Dict[str, str]], str] = None, 
@@ -57,15 +52,15 @@ class CodeGenerationTester:
         else:
             continue_from = 0
 
-        num_tests = min(num_tests, self.question_database.count_documents({}))         # ensuring that the number of iterations is lower than max number of documents in the db
+        num_tests = min(self.question_database.count_documents({}) - continue_from, num_tests)         # ensuring that the number of iterations is lower than max number of documents in the db
 
         task_pass_count = 0             # int variable tracking the number of tasks that have passed
         failed_validity = []            # list storing the test case id that have failed the check functions
-        timeout = 5                     # int variable indicating the number of seconds the LLM generated program should complete running by
+        timeout = 8                     # int variable indicating the number of seconds the LLM generated program should complete running by
 
         try:                            # try statement to catch any potential errors arising from using free APIs. These APIs are usually unstable and can crash at any time. 
-            for idx in tqdm(range(continue_from, num_tests)):
-                task_id = f"HumanEvalo{idx}"
+            for idx in tqdm(range(continue_from, continue_from + num_tests)):
+                task_id = f"{task_set}o{idx}"
 
                 qn_sample = self.question_database.find_one({"_id": task_id})
 
@@ -73,6 +68,11 @@ class CodeGenerationTester:
                     continue
 
                 prompt_template = prompt_helper()
+
+                # storing all the file names in the current directory as a snapshot
+                # this is a necessary step to remove any new files created from running the tasks
+                curr_dir = os.getcwd()
+                snapshot_dir = os.listdir(curr_dir)
             
                 qn = qn_sample['qn']                                            # contains the question without the docstring description
                 qn_desc = qn_sample['qn_desc']                                  # doc string description
@@ -90,6 +90,16 @@ class CodeGenerationTester:
                             "canonical_solution": complete_soln,
                             "failure_type": None
                         }
+                
+                match task_set:
+                    case "HumanEval":
+                        test_set_helper = CodeGenerationHumanEvalHelper
+                    case "BigCodeBench":
+                        test_set_helper = CodeGenerationBigCodeBenchHelper
+                    case _:
+                        input_data['failure_type'] = "invalid_task_set"
+                        CodeGenerationTester.log_into_csv(output_file_path = output_file_path, input_data=input_data)
+                        continue
 
                 # Sanity check to filter out test cases where there is only 1 example and hence the task cannot be used for few shot
                 if prompt_type == "few_shot" and len(examples.keys()) == 1:
@@ -97,13 +107,20 @@ class CodeGenerationTester:
                     input_data['failure_type'] = "insufficient_few_shot_examples"
                     CodeGenerationTester.log_into_csv(output_file_path = output_file_path, input_data=input_data)
                     continue
-
-                # Obtaining the function name of the task function
-                random_test_case = random.choice(list(examples.keys()))
-                func_name = CodeGenerationHumanEvalHelper.extract_func_name_from_example(random_test_case)
+                
+                if task_set == "HumanEval":
+                    # Obtaining the function name of the task function
+                    random_test_case = random.choice(list(examples.keys()))
+                    func_name = CodeGenerationHumanEvalHelper.extract_func_name_from_example(random_test_case)
+                else:
+                    func_name = 'task_func'
 
                 # Sanity check to ensure that the complete solution passes the check functions
-                check_soln_validity = CodeGenerationHumanEvalHelper.check_test_case(test_case = test_function, code_snippet = complete_soln, func_name = func_name)
+                check_soln_validity = test_set_helper.check_test_case(
+                    test_case = test_function, 
+                    code_snippet = complete_soln, 
+                    func_name = func_name
+                    )
                 
                 if check_soln_validity is not True:
                     failed_validity.append(task_id)
@@ -114,9 +131,20 @@ class CodeGenerationTester:
                 
                 # Handling Task Mutation (If any)
                 if mutation_type is not None:
-                    func_names, var_names = CodeMutator.obtain_key_info_from_code(qn)
+                    try: 
+                        tree = ast.parse(qn)
+
+                    except IndentationError:
+                        tree = ast.parse(qn + "\n    pass")
+
+                    except Exception as e:
+                        input_data['failure_type'] = "code_snippet_error > Code snippet could not be converted to a valid AST."
+                        CodeGenerationTester.log_into_csv(output_file_path = output_file_path, input_data=input_data)
+                        continue
+
+                    func_names, var_names = CodeMutator.obtain_key_info_from_code(tree)
                     qn, examples, qn_desc, mutation_rename_map = CodeMutator.mutate_variable_names(
-                        source=qn, 
+                        tree = tree, 
                         qn_desc= qn_desc,
                         examples=examples, 
                         func_names=func_names, 
@@ -124,19 +152,18 @@ class CodeGenerationTester:
                         var_names=var_names,
                     )
                     func_name = mutation_rename_map[func_name]
-                
+
                 # Formating of examples into doc test format for one shot/few shot prompts
                 if example_helper is not None:
                     prompt_examples = example_helper(examples)
-                
                 
                 input_variables = {
                     'code': qn,
                     'task': qn_desc,
                     'example': prompt_examples if example_helper is not None else None,
                 }
-                input_data["prompt"] = prompt_template.format(**input_variables)
 
+                input_data["prompt"] = prompt_template.format(**input_variables)
 
                 # Running the llm on the input variables and the prompt template
                 ans =  llm.invoke(input_variables=input_variables, prompt_template=prompt_template)
@@ -155,25 +182,44 @@ class CodeGenerationTester:
                         input_data["failure_type"] = ("could_not_parse_LLM_answer", type(e))
                         CodeGenerationTester.log_into_csv(output_file_path = output_file_path, input_data = input_data)
                         continue
-                
+
                 input_data['model_output'] = processed_output       # storing the answer in input_data dict
                 ## LLM Answer Test Execution
                 try:
-                    
                     # multiprocessing library is used here as some LLM answers are wrong and uses a while loop which runs indefinitely.
                     #   This ensures that the LLM answer execution will automatically timeout after timeout seconds
                     multiprocessing_queue = multiprocessing.Queue()
-                    verify_answer_process = multiprocessing.Process(target= run_llm_answer, args = (processed_output, test_function, func_name, multiprocessing_queue))
+
+                    verify_answer_process = multiprocessing.Process(        
+                        target= test_set_helper.run_llm_answer,
+                        args = (processed_output, test_function, func_name, multiprocessing_queue)
+                        )
+
                     verify_answer_process.start()
                     verify_answer_process.join(timeout=timeout)
+
+                    over_run = False
                     if verify_answer_process.is_alive():
                         verify_answer_process.kill()
                         verify_answer_process.join()
-                        raise RuntimeError()
+                        over_run = True
+                    
+                    curr_dir_snapshot = os.listdir(curr_dir)
+                    for file_name in curr_dir_snapshot:
+                        if file_name not in snapshot_dir:
+                            file_path = os.path.join(curr_dir, file_name)
+                            if os.path.isdir(file_path):
+                                shutil.rmtree(file_path)
+                            else:
+                                os.remove(file_path)
                     if not multiprocessing_queue.empty():
                         error = multiprocessing_queue.get()
                         raise error
+                    elif over_run:
+                        raise RuntimeError
+                    
                     task_pass_count += 1
+
                     # print(f"{task_id}: {task_pass_count}")
 
                 except Exception as e:
@@ -182,7 +228,7 @@ class CodeGenerationTester:
                     elif isinstance(e, RuntimeError):
                         print("{task_id}: LLM Answer exceeded runtime of {timeout} seconds -> {e}".format(e = e, task_id = task_id, timeout = timeout))
                     else:
-                        print("{task_id}: Could not run the LLM answer due to the following error {e}".format(e = e, task_id = task_id))
+                        print("{task_id}: Could not run the LLM answer due to the following error: {e}".format(e = e, task_id = task_id))
                     input_data['failure_type'] = type(e)            # Logging failure type into input_data
 
                 # logging completed run into csv 
@@ -199,9 +245,6 @@ class CodeGenerationTester:
         except KeyboardInterrupt:
             print(task_id)
             return task_pass_count
-
-    
-
 
 if __name__ == "__main__":
     llm_tester = CodeGenerationTester("HumanEval_Open_Ended")

@@ -1,7 +1,1 @@
-for2while mutation
-
-- We need some way to iterate through each variable and save the meta data (72,79,93,126)
-    - A prior approach was to catch this specific error, then change the while loop conditions when it occurs. However, this approach is a bit challenging to implement and will require major changes in the current code Base
-    - The next approach would be to use an ast.NodeVisitor to visit all ast.Assign nodes and track the types. This was initially avoided as it is also a tedious approach but after testing the first approach, this approach may be more efficient
-
-- CondAug 
+To possibly refactor the cruxeval helper class in cruxeval_helper to inherit from another parent

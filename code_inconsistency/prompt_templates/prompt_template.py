@@ -14,10 +14,11 @@ class CodeInconsistencyPromptTemplate(PromptTemplate):
                 # Input
                 {test_input}
                                     
-                # Expected Output: 
+                # Expected Output:                      
+                ### Your answer
             """)
             return prompt
-        
+            
         def one_shot_prompt() -> str:
             prompt = textwrap.dedent("""
                 # You are given a code snippet, a description of the code, the input and a single example. You may use the example to determine the expected output. Return the expected output in your answer.
@@ -36,6 +37,7 @@ class CodeInconsistencyPromptTemplate(PromptTemplate):
                 {example}
                                     
                 # Expected Output: 
+                ### Your answer
             """)
             return prompt
         
@@ -57,6 +59,7 @@ class CodeInconsistencyPromptTemplate(PromptTemplate):
                 {example}
                                     
                 # Expected Output: 
+                ### Your answer
             """)
             return prompt
 
