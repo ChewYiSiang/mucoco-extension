@@ -21,7 +21,7 @@ class PromptTemplate(ABC):
         return "\n".join(">>> " + test + "\n" + test_cases[test] for test in test_cases)
     
     @staticmethod
-    def structure_one_shot_example(test_cases: Dict[str, str]) -> str:
+    def structure_one_shot_example(test_cases: Dict[str, str] | str) -> str:
         """
         This function is used to format examples in a dictionary into a standardised doctest format to be included in a one shot prompt template. This is used to structure the examples used for one shot prompts.
 
@@ -33,9 +33,12 @@ class PromptTemplate(ABC):
         Returns:
             str: a string representing the structured one shot examples
         """
-        
-        random_example = random.choice(list(test_cases.keys()))
-        return ">>> " + random_example + "\n" + test_cases[random_example]
+
+        if isinstance(test_cases, Dict):
+            random_example = random.choice(list(test_cases.keys()))
+            return ">>> " + random_example + "\n" + test_cases[random_example]
+        else:
+            return test_cases
 
 class MCQPromptTemplate(PromptTemplate):
     def zero_shot_prompt() -> str:
@@ -71,7 +74,7 @@ class OpenEndedPromptTemplate(PromptTemplate):
     
     def one_shot_prompt() -> str:
         prompt = textwrap.dedent("""
-            # Complete the code for the following function given it's description. You may use the given example to write your code. Return your answer as a complete function. 
+            # Complete the code for the following function given it's description. Only complete the code function and do not add any other details. You may use the given example to write your code. Return your answer as a complete function, including any provided code. 
             {task}
                                  
             # Example:

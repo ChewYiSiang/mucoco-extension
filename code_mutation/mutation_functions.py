@@ -117,6 +117,16 @@ class CodeMutator:
         except IndentationError:
             source += "\n" + "    pass"
             tree = ast.parse(full_sol)
+
+        # Pre condition check that checks if a valid for loop exists
+        if mutation_type in (FOR2WHILE, FOR2ENUMERATE):
+            for_loop_checker = ASTNodeHelper.ForLoopDetectorNodeVisitor()
+            for_loop_checker.visit(tree)
+            for_loop_exists = for_loop_checker.for_loop_exisits
+
+            if for_loop_exists == False:
+                raise NoForLoopError()
+        
         try:
             if mutation_type == FOR2WHILE:
                 if task_set == "HumanEval":
@@ -198,12 +208,12 @@ class CodeMutator:
 
 
     @staticmethod
-    def obtain_key_info_from_code(tree : ast.AST):
+    def obtain_key_info_from_code(prog : ast.Module):
         main_func = set()
         func_names = []
         var_names = []
 
-        for node in tree.body:
+        for node in prog.body:
             if isinstance(node, ast.FunctionDef):
                 main_func.add(node)
         
@@ -239,6 +249,7 @@ class CodeMutator:
         var_names: List[str] = None,
     ) -> Tuple[str, str, str, Dict[str, str]]:
         # 1) Build rename mapping for all identifiers
+
         rename_map = {}
         if mutation_type.strip().lower() == SEQUENTIAL_MUTATION:
             for idx, name in enumerate(func_names, start=1):
@@ -265,12 +276,18 @@ class CodeMutator:
         # 4) Apply renamer to the test_case snippet
         mutated_test_case = {}
 
-        for eg in examples:
-            test_tree = ast.parse(eg)
-            mutated_test_tree = var_name_transformer.visit(test_tree)
-            ast.fix_missing_locations(mutated_test_tree)
-            mutated_test_case[ast.unparse(mutated_test_tree)] = examples[eg]
-        
+        if isinstance(examples, dict):
+            for eg in examples:
+                test_tree = ast.parse(eg)
+                mutated_test_tree = var_name_transformer.visit(test_tree)
+                ast.fix_missing_locations(mutated_test_tree)
+                mutated_test_case[ast.unparse(mutated_test_tree)] = examples[eg]
+        else:
+            # assuming it is BigCodeBench, in which all function names are task_func
+            func_name = 'task_func'
+            pattern = r'\btask_func\b'
+            mutated_test_case = re.sub(pattern, rename_map[func_name], examples)
+                
         # 5) Applying mutation onto question description, should the original function name appear in there.
         for name in rename_map:
             regex_pattern = rf'\b{re.escape(name)}\b'
@@ -340,6 +357,11 @@ class MutationFailedError(MutationError):
     def __init__(self, error):
         message = f"Solution could not be mutated due to the following error: {type(error)} > {error}"
         super().__init__(message)
+
+class NoForLoopError(Exception):
+    """Raised when no for loops are in the given program"""
+    def __init__(self, *args):
+        super().__init__("No valid for loops in the given program")
 
 if __name__ == "__main__":
     print(f"Invalid mutation type was used. The available mutation types are {', '.join(CodeMutator.mutation_types)}")

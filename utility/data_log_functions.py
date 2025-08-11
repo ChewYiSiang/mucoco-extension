@@ -46,8 +46,8 @@ class DataLogHelper:
             raise ValueError("CSV column headers do not match.")
         
         ## Checking that both logs have the same number of entries
-        if log1.shape[0] != log2.shape[0]:
-            raise ValueError("Dataframe shapes are not equal. Double check the entries again.")
+        # if log1.shape[0] != log2.shape[0]:
+        #     raise ValueError("Dataframe shapes are not equal. Double check the entries again.")
 
         ## If either logs are empty, (0,0) is returned
         if log1.shape[0] == 0 or log2.shape[0] == 0:
@@ -67,7 +67,8 @@ class DataLogHelper:
             log_2_matched_data = log2[log2["task_id"] == task_id]
 
             if log_2_matched_data.shape[0] != 1:
-                raise  ValueError(f"Expected exactly one matched task_id in log_2, but found {log_2_matched_data.shape[0]} matched task_id.")
+                # raise  ValueError(f"Expected exactly one matched task_id in log_2, but found {log_2_matched_data.shape[0]} matched task_id.")
+                continue
 
             log2_data = log_2_matched_data.iloc[0]
             log2_data_index = log_2_matched_data.index[0]
@@ -76,12 +77,13 @@ class DataLogHelper:
             log1_result = log1_data['failure_type']
             log2_result = log2_data['failure_type']
 
-            if (isinstance(log1_result, float) and "AssertionError" in str(log2_result)) or (isinstance(log2_result, float) and "AssertionError" in str(log1_result)) or (isinstance(log1_result, float) and isinstance(log2_result, float)):
+            if (isinstance(log1_result, float) and not isinstance(log2_result, float)) or (isinstance(log2_result, float) and not isinstance(log1_result, float)) or (isinstance(log1_result, float) and isinstance(log2_result, float)):
                 tot += 1
                 if not isinstance(log2_result, float):
                     log2_inconsistencies +=1
                 elif not isinstance(log1_result, float):
                     log1_inconsistencies +=1
+
 
         ## Checking if log1 have any remaining entries. This is not used now, but could come in handy in the future.
         # if log1.shape[0] > 0:

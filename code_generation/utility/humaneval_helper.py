@@ -4,6 +4,7 @@ import doctest
 from typing import Tuple, Dict
 import builtins
 from code_generation.utility.database_helper import DatabaseHelper
+import multiprocessing
 
 
 class CodeGenerationHumanEvalHelper(DatabaseHelper):
@@ -122,7 +123,11 @@ class CodeGenerationHumanEvalHelper(DatabaseHelper):
                 print("Original test case could not be processed due to the following error: {e}".format(e = e))
             return None
         
-    def check_test_case(test_case: str, code_snippet: str, func_name: str) -> bool:
+    def check_test_case(
+            test_case: str, 
+            code_snippet: str, 
+            func_name: str
+        ) -> bool:
         """
         This function tests an input string code snippet against a given check function.
 
@@ -191,3 +196,19 @@ class CodeGenerationHumanEvalHelper(DatabaseHelper):
                     return func_name
             else:
                 raise ValueError("Could not extract the function name.")
+            
+    @staticmethod
+    def run_llm_answer(
+        processed_output: str, 
+        test_function: str, 
+        func_name: str, 
+        mp_queue: multiprocessing.Queue,
+        ):
+        namespace = {}
+
+        try:
+            exec(processed_output, namespace)
+            exec(test_function, namespace)
+            namespace['check'](namespace[func_name])
+        except Exception as e:
+            mp_queue.put(e)

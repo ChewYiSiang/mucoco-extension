@@ -1,8 +1,8 @@
 import ast
-from code_inconsistency.utility.humaneval_helper import CodeInconsistencyHumanEvalHelper
+from code_inconsistency.utility.database_helper import CodeInconsistencyHelper
 from typing import Any
 
-class CodeInconsistencyCruxEvalHelper(CodeInconsistencyHumanEvalHelper):
+class CodeInconsistencyCruxEvalHelper(CodeInconsistencyHelper):
     @staticmethod
     def extract_func_name(prog: str):
         """

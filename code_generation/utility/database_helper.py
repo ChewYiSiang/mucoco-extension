@@ -1,8 +1,9 @@
 import ast
-import regex as re
 from typing import Tuple
+from abc import ABC, abstractmethod
+import multiprocessing
 
-class DatabaseHelper:
+class DatabaseHelper(ABC):
     @staticmethod
     def seperate_original_desciptions(prompt: str) -> Tuple[str, str] | None:
         """
@@ -63,6 +64,22 @@ class DatabaseHelper:
         except Exception as e:
             print("Failed due to following error: {e}".format(e = e))
             return None, None                                           # returning a tuple containing None, None
-    
+        
+    @abstractmethod
+    def run_llm_answer(
+            processed_output: str, 
+            test_function: str, 
+            func_name: str, 
+            mp_queue: multiprocessing.Queue,
+        ):
+        pass
+
+    @abstractmethod
+    def check_test_case(
+            test_case: str, 
+            code_snippet: str, 
+            func_name: str
+        ):
+        pass
 
     

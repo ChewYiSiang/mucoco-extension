@@ -9,6 +9,16 @@ from tqdm import tqdm
 import time
 import ast
 import copy
+import multiprocessing
+from llm_models.code_llms import Mistral
+
+
+
+def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: multiprocessing.Queue):
+    llm = Mistral()
+    ans = llm.invoke(input_variables=input_variables, prompt_template=prompt_template)
+    queue.put(ans)
+
 
 class LLMConsistencyTester(CodeGenerationTester):
     def __init__(self, qn_database: str = "HumanEval_Input_Output"):
@@ -29,11 +39,9 @@ class LLMConsistencyTester(CodeGenerationTester):
                 return CodeInconsistencyHumanEvalHelper.extract_func_name_from_example(random_test_case)
             case _:
                 return None
-                
 
     def run_code_consistency_test(
             self,
-            llm: CodeLLM,
             prompt_helper: Callable[[], str], 
             num_tests: int, 
             output_file_path: str,
@@ -45,6 +53,8 @@ class LLMConsistencyTester(CodeGenerationTester):
             task_type: str = TaskTypes.OUTPUT_PREDICTION,
             example_helper: Callable[[Dict[str, str]], str] = None, 
     ) -> int:
+        # integer storing the number of seconds that the llm should return its answer by
+        llm_timeout = 5
                 
         if prompt_type != 'zero_shot' and example_helper is None:
             raise ValueError("A non zero-shot prompt is used, yet no example helper function was given. Add the approrpriate example_helper for this prompt template.")
@@ -93,6 +103,7 @@ class LLMConsistencyTester(CodeGenerationTester):
                 
                 if output_metadata == type(None).__name__:
                     output_metadata = "type(None)"
+                
                 if not isinstance(output_args, str) and not isinstance(eval(str(output_args)), eval(output_metadata)):
                     if eval(output_metadata) == tuple:
                         output_args = tuple(output_args)
@@ -104,7 +115,7 @@ class LLMConsistencyTester(CodeGenerationTester):
                     "task_id": task_id,
                     "prompt": None,
                     "model_output": None,
-                    "expected_output": test_outputs,
+                    "expected_output": test_outputs if task_type == TaskTypes.OUTPUT_PREDICTION else test_inputs,
                     "failure_type": None
                 }
 
@@ -119,9 +130,6 @@ class LLMConsistencyTester(CodeGenerationTester):
                     continue
                 
                 func_name = LLMConsistencyTester.obtain_test_func_name(prog = full_sol, examples = examples, task_set = task_set)
-
-                # random_test_case = list(examples.keys())[0]
-                # func_name = CodeInconsistencyHumanEvalHelper.extract_func_name_from_example(random_test_case)
 
                 ## Processing of output args and metadata
                 output_args = ast.literal_eval(output_args) if output_metadata != str.__name__ else output_args
@@ -183,7 +191,30 @@ class LLMConsistencyTester(CodeGenerationTester):
                 log_entry["prompt"] = prompt_template.format(**input_variables)            # storing formatted prompt into database entry
 
                 ## Running the llm on the input variables and the prompt template
-                ans =  llm.invoke(input_variables=input_variables, prompt_template=prompt_template)
+                multiprocessing_queue = multiprocessing.Queue()
+
+                verify_answer_process = multiprocessing.Process(
+                    target= invoke_llm,
+                    kwargs={
+                        "input_variables": input_variables,
+                        "prompt_template": prompt_template,
+                        "queue": multiprocessing_queue
+                    }
+                )
+
+                verify_answer_process.start()
+                verify_answer_process.join(timeout=llm_timeout)
+
+                if verify_answer_process.is_alive():
+                    verify_answer_process.kill()
+                    verify_answer_process.join()
+                    log_entry['failure_type'] = f"{type(RuntimeError()).__name__} > LLM could not answer the task within {llm_timeout} seconds."
+                    LLMConsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
+                    continue
+
+                if not multiprocessing_queue.empty():
+                    ans = multiprocessing_queue.get()
+
                 ans = LLMConsistencyTester.process_llm_ans(ans)
                 log_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
                 ## Running the formatted prompt into the LLM
@@ -196,8 +227,10 @@ class LLMConsistencyTester(CodeGenerationTester):
                     if isinstance(e, AssertionError):
                         pass
                         # print(f"{task_id}: Function failed to run due to following error: {type(e)} > {e}")
+                    elif isinstance(e, RuntimeError):
+                        e = RuntimeError(f"LLM did not complete answering the question within the given timeout of {llm_timeout} seconds")
                     else:
-                        print(f"{task_id}: Could not run the LLM answer due to the following error {type(e)} > {e}")
+                        print(f"{task_id}: Could not run the LLM answer due to the following error: {type(e)} > {e}")
                     log_entry['failure_type'] = f"{type(e).__name__} > {e}"
                 
                 ## Logging data into the csv file

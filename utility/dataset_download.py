@@ -16,6 +16,9 @@ class HuggingFaceDBDownload:
         ds = load_dataset("cruxeval-org/cruxeval")
         ds["test"].to_csv("cruxeval_test.csv")
 
+    def download_codemmlu():
+        ds = load_dataset('Fsoft-AIC/CodeMMLU', "code_completion")
+        ds["test"].to_csv(" codemmlu_test.csv")
 
 if __name__ == "__main__":
-    HuggingFaceDBDownload.download_cruxeval()
+    HuggingFaceDBDownload.download_codemmlu()

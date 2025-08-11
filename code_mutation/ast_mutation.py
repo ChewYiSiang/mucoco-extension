@@ -27,6 +27,20 @@ class ASTNodeHelper:
         """
         pass
 
+    class ForLoopDetectorNodeVisitor(ast.NodeVisitor):
+        """
+        This NodeVisitor class is used to determine if a valid for loop exisits in the input program.
+
+        Note:
+            [x for x in list] is not considered a valid for loop. Only traditional for x in list: ... are considered for loops valid for mutation.
+        """
+
+        def __init__(self):
+            self.for_loop_exisits = False
+
+        def visit_For(self, node):
+            self.for_loop_exisits = True
+
 
     class VariableTypeMapperNodeVisitor(ast.NodeVisitor):
         """
@@ -363,27 +377,26 @@ class ASTNodeHelper:
                 raw_func_args = node.iter.args
             else:
                 raw_func_args = [node.iter]
-
             target_name, ele = self.explore_for_loop_target(node.target)
 
             # storing the name of the counter in this instance
             self.target_name = target_name
 
             func_args = self.find_iteration(raw_func_args)
-
             ## Updating the start, step, if necessary
             if isinstance(func_args, list):
                 if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == 'enumerate' and len(node.iter.args) > 1:    # handling edge cases like for idx, ele in enumerate(list, 1)
                     func_args, start = node.iter.args
-
                 elif len(func_args) == 3:
                     start, func_args, step = func_args
                 elif len(func_args) == 2:
                     start, func_args = func_args
 
+            
             # if the step is less than 0, this means that the counter is decreasing with each step and hence increment is false
             if step < 0:
                 increment = False
+                
 
             ## Establishing the counter for the while loop
             #       E.g.: i = 0
@@ -392,7 +405,7 @@ class ASTNodeHelper:
                 value= (
                     ast.Constant(value=start) if isinstance(start, int)                 # if the start is an int like "i = 6" for example
                     else ast.Name(id=start, ctx=ast.Load()) if isinstance(start, str)   # if the start is a variable name such as "i = n"
-                    else start                                                          # if the staet is anything else such as "i = 1+2"
+                    else start                                                          # if the start is anything else such as "i = 1+2"
                 )
             )
 

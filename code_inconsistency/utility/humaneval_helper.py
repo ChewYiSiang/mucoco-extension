@@ -1,39 +1,9 @@
 import ast
 from typing import Tuple, List, Dict, Any
 from code_generation.utility.humaneval_helper import CodeGenerationHumanEvalHelper
-import inspect
+from code_inconsistency.utility.database_helper import CodeInconsistencyHelper
 
-class CodeInconsistencyHumanEvalHelper(CodeGenerationHumanEvalHelper):
-    @staticmethod
-    def check_input_output(
-        full_sol: str, 
-        test_input: str, 
-        expected_output: str, 
-        func_name: str, 
-        input_metadata: List[str]
-    ) -> bool:
-        
-        namespace = {}
-        try:
-            exec(full_sol, namespace)
-            sig = inspect.signature(namespace[func_name])
-            if test_input is None:
-                assert namespace[func_name]() == expected_output
-            elif not isinstance(test_input, (int)) and len(sig.parameters) > 1:
-                # print(namespace[func_name](*test_input), type(namespace[func_name](*test_input)))
-                # print(expected_output, type(expected_output))
-                assert namespace[func_name](*test_input) == expected_output
-            else:
-                # print(expected_output, type(expected_output))
-                # print(namespace[func_name](test_input), type(namespace[func_name](test_input)))
-                assert namespace[func_name](test_input) == expected_output
-            return True
-        except AssertionError as e:
-            return False
-        except Exception as e:
-            print(f"Could not evaluate TF due to the following error: {e}")
-            return False
-    
+class CodeInconsistencyHumanEvalHelper(CodeGenerationHumanEvalHelper, CodeInconsistencyHelper):
     def extract_input_metadata(
             examples: Dict[str, str], 
             qn: str
@@ -89,36 +59,6 @@ class CodeInconsistencyHumanEvalHelper(CodeGenerationHumanEvalHelper):
             raise ValueError("The number of arguments extracted does not match with the number of metadata extracted")
         
         return metadata_dictionary
-    
-    # @staticmethod
-    # def check_database_answer(
-    #     full_sol: str, 
-    #     input_args: Any, 
-    #     input_metadata: List[str], 
-    #     output_args: Any, 
-    #     output_metadata: List[str], 
-    #     examples: Dict[str, str]
-    # ) -> bool:
-        
-    #     random_test_case = list(examples.keys())[0]
-    #     func_name = CodeInconsistencyHumanEvalHelper.extract_func_name_from_example(random_test_case)      
-
-    #     if output_metadata == type(None).__name__:
-    #         output_metadata = "type(None)"
-    #     if not eval(output_metadata) == str:
-    #         output_args = eval(output_args)
-
-    #     check_soln_validity = CodeInconsistencyHumanEvalHelper.check_input_output(
-    #         full_sol= full_sol,
-    #         test_input= input_args,
-    #         expected_output= output_args,
-    #         func_name=func_name,
-    #         input_metadata = input_metadata
-    #     )
-    #     if not check_soln_validity:
-    #         return False
-    #     else:
-    #         return True
 
 if __name__ == "__main__":
 

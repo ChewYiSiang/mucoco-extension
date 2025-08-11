@@ -8,12 +8,10 @@ import unittest
 import io
 import contextlib
 import matplotlib.pyplot as plt
-import multiprocessing as mp
-import types
+import multiprocessing
+import os
 
 class CodeGenerationBigCodeBenchHelper(DatabaseHelper):
-                
-
     @staticmethod
     def extract_examples(desc: str) -> List[str]:
         pattern = "Example:", "Examples:"
@@ -88,18 +86,98 @@ class CodeGenerationBigCodeBenchHelper(DatabaseHelper):
                 raise OriginalDBError(e)
         
         TestCasesClass = namespace['TestCases']
+        
+        # Load all test methods from the unittest.TestCase subclass `TestCasesClass` into a test suite
+        suite = unittest.TestLoader().loadTestsFromTestCase(TestCasesClass)
+
+        # Create a StringIO buffer to capture all stdout and stderr outputs during test execution
+        f = io.StringIO()
+
+        # Redirect stdout and stderr to the buffer while running the test suite
+        with contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
+            # Run the test suite and capture the result object
+            result = unittest.TextTestRunner(stream=f, verbosity=2).run(suite)
+
+            # Close all matplotlib figures in case any were generated during the test
+            plt.close('all')
+
+        # If there were any runtime errors (not assertion failures) during the tests, raise a custom exception
+        if len(result.errors) > 0:
+            raise FullSolutionFailedError(result.errors)
+
+
+        return full_sol
+    
+    @staticmethod
+    def update_testcase_with_mutated_func_name(
+        mutated_func_name: str,
+        test_function: str,
+        ):
+        pattern = r"task_func"
+        replacement = mutated_func_name
+        return re.sub(pattern, replacement, test_function)
+    
+    @staticmethod
+    def run_llm_answer(
+        processed_output: str, 
+        test_function: str, 
+        func_name: str, 
+        mp_queue: multiprocessing.Queue,
+        ):
+        import matplotlib
+        matplotlib.use('Agg')  # Non-interactive backend
+        import matplotlib.pyplot as plt
+
+        
+        if func_name != "task_func":
+            test_function = CodeGenerationBigCodeBenchHelper.update_testcase_with_mutated_func_name(
+                mutated_func_name=func_name,
+                test_function=test_function
+            )
+
+        namespace = {}
+        try:
+            exec(processed_output, namespace)
+            exec(test_function, namespace)
+        except Exception as e:
+            mp_queue.put(LLMAnswerFailedError(e))
+            return
+        TestCasesClass = namespace['TestCases']
         suite = unittest.TestLoader().loadTestsFromTestCase(TestCasesClass)
         f = io.StringIO()
         with contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
             result = unittest.TextTestRunner(stream=f, verbosity=2).run(suite)
             plt.close('all')  # Close all open figures
         if len(result.errors) > 0:          # indicating that some error has been caught
-            raise FullSolutionFailedError(result.errors)
+            mp_queue.put(LLMAnswerFailedError(result.errors))
 
-        return full_sol
-    
-    def check_test_case():
-        pass
+    @staticmethod
+    def check_test_case(
+        test_case: str, 
+        code_snippet: str, 
+        func_name: str
+    ):
+        if func_name != "task_func":
+            test_case = CodeGenerationBigCodeBenchHelper.update_testcase_with_mutated_func_name(
+                mutated_func_name=func_name,
+                test_function=test_case
+            )
+
+        namespace = {}
+        exec(code_snippet, namespace)
+        exec(test_case, namespace)
+        
+        TestCasesClass = namespace['TestCases']
+        suite = unittest.TestLoader().loadTestsFromTestCase(TestCasesClass)
+        f = io.StringIO()
+        with contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
+            result = unittest.TextTestRunner(stream=f, verbosity=2).run(suite)
+            plt.close('all')  # Close all open figures
+        if len(result.errors) > 0:          # indicating that some error has been caught
+            return False
+        else:
+            return True
+        
 
 class PackageInstallationError(Exception):
     def __init__(self, missing_module):
@@ -114,3 +192,7 @@ class OriginalDBError(Exception):
 class FullSolutionFailedError(Exception):
     def __init__(self, error):
         super().__init__(f"Full solution failed due to following errors from test case: {error}") 
+
+class LLMAnswerFailedError(Exception):
+    def __init__(self, error):
+        super().__init__(f"LLM solution failed due to following error: {type(error).__name__ } > {error}") 
