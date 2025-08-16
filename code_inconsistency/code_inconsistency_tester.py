@@ -101,6 +101,7 @@ class LLMConsistencyTester(CodeGenerationTester):
                     if eval(output_metadata) == tuple:
                         output_args = tuple(output_args)
 
+                #input_args = eval(input_args) if isinstance(input_args, str) and input_metadata != str.__name__  else input_args
                 ## Dicionary containing the log entry
                 log_entry = {
                     "task_id": task_id,

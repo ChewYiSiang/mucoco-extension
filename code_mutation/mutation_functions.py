@@ -253,25 +253,7 @@ class CodeMutator:
             mutated_dict['full_sol'] = mutated_sol
         except Exception as e:
             print(f"DEBUG: Mutation check failed with error: {type(e).__name__}: {e}")
-            
-            # For semantic-preserving mutations like DeMorgan and boolean_literal, check if both original and mutated produce the same result
-            if mutation_type in (DEMORGAN, BOOLEAN_LITERAL):
-                try:
-                    print("DEBUG: Checking if original code also fails the same test...")
-                    CodeMutator.check_solution_validity(full_sol, output_args, input_args, func_name)
-                    # If original passes but mutated fails, then it's a real mutation error
-                    raise MutationCheckFailedError()
-                except Exception as orig_e:
-                    print(f"DEBUG: Original code also fails with: {type(orig_e).__name__}: {orig_e}")
-                    # Check if both produce the same result (semantic equivalence)
-                    if CodeMutator.check_semantic_equivalence(full_sol, mutated_sol, input_args, func_name):
-                        print("DEBUG: Original and mutated code produce identical results - accepting mutation")
-                        mutated_dict['full_sol'] = mutated_sol
-                    else:
-                        print("DEBUG: Original and mutated code produce different results - rejecting mutation")
-                        raise MutationCheckFailedError()
-            else:
-                raise MutationCheckFailedError()
+            raise MutationCheckFailedError()
         return mutated_dict
     
     @staticmethod
