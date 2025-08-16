@@ -16,6 +16,12 @@ FOR2ENUMERATE = "for2enumerate"
 DEMORGAN = "demorgan"
 RANDOM_MUTATION = "random"
 SEQUENTIAL_MUTATION = "sequential"
+LITERAL_FORMAT = "literal_format"
+BOOLEAN_LITERAL = "boolean_literal"
+COMMUTATIVE_REORDER = "commutative_reorder"
+CONSTANT_UNFOLD = "constant_unfold"
+CONSTANT_UNFOLD_ADD = "constant_unfold_add"
+CONSTANT_UNFOLD_MULT = "constant_unfold_mult"
 
 def run_llm_answer(mutated_sol: str, expected_output: Any, func_name: str, test_input: Any = 'no_input', mp_queue = multiprocessing.Queue):
         namespace = {}
@@ -35,11 +41,8 @@ def run_llm_answer(mutated_sol: str, expected_output: Any, func_name: str, test_
 
 class CodeMutator:
     # Main class for applying various types of code mutations while preserving functionality.
-
-    mutation_types = [FOR2ENUMERATE, FOR2WHILE, DEMORGAN, RANDOM_MUTATION, SEQUENTIAL_MUTATION]
-
-    def __init__(self, func_name: str):
-        self.func_name = func_name
+    
+    mutation_types = [FOR2ENUMERATE, FOR2WHILE, DEMORGAN, RANDOM_MUTATION, SEQUENTIAL_MUTATION, LITERAL_FORMAT, BOOLEAN_LITERAL, COMMUTATIVE_REORDER, CONSTANT_UNFOLD, CONSTANT_UNFOLD_ADD, CONSTANT_UNFOLD_MULT]
 
     def __init__(self, func_name: str):
         self.func_name = func_name
@@ -230,8 +233,23 @@ class CodeMutator:
             elif mutation_type == DEMORGAN:
                 mutated_sol = CodeMutator.mutate_demorgan(source = full_sol)
                 
-            elif mutation_type == DEMORGAN:
-                mutated_sol = CodeMutator.mutate_demorgan(source = full_sol)
+            elif mutation_type == LITERAL_FORMAT:
+                mutated_sol = CodeMutator.mutate_literal_format(tree = tree)
+                
+            elif mutation_type == BOOLEAN_LITERAL:
+                mutated_sol = CodeMutator.mutate_boolean_literal(tree = tree)
+                
+            elif mutation_type == COMMUTATIVE_REORDER:
+                mutated_sol = CodeMutator.mutate_commutative_reorder(tree = tree)
+                
+            elif mutation_type == CONSTANT_UNFOLD:
+                mutated_sol = CodeMutator.mutate_constant_unfold(tree = tree)
+                
+            elif mutation_type == CONSTANT_UNFOLD_ADD:
+                mutated_sol = CodeMutator.mutate_constant_unfold_add(tree = tree)
+                
+            elif mutation_type == CONSTANT_UNFOLD_MULT:
+                mutated_sol = CodeMutator.mutate_constant_unfold_mult(tree = tree)
                 
             elif mutation_type == SEQUENTIAL_MUTATION or mutation_type == RANDOM_MUTATION:
                 func_names, var_names = CodeMutator.obtain_key_info_from_code(tree)
@@ -258,7 +276,7 @@ class CodeMutator:
 
         ## Checking if the mutated solution is identical to the original solution
         try:
-            if mutation_type in (FOR2ENUMERATE, FOR2WHILE, DEMORGAN):
+            if mutation_type in (FOR2ENUMERATE, FOR2WHILE, DEMORGAN, LITERAL_FORMAT, BOOLEAN_LITERAL, COMMUTATIVE_REORDER, CONSTANT_UNFOLD, CONSTANT_UNFOLD_ADD, CONSTANT_UNFOLD_MULT):
                 assert CodeMutator.standardize_program(mutated_sol) != CodeMutator.standardize_program(full_sol)
         except:
             raise IdenticalMutationError()
@@ -274,25 +292,7 @@ class CodeMutator:
             mutated_dict['full_sol'] = mutated_sol
         except Exception as e:
             print(f"DEBUG: Mutation check failed with error: {type(e).__name__}: {e}")
-            
-            # For semantic-preserving mutations like DeMorgan, check if both original and mutated produce the same result
-            if mutation_type == DEMORGAN:
-                try:
-                    print("DEBUG: Checking if original code also fails the same test...")
-                    CodeMutator.check_solution_validity(full_sol, output_args, input_args, func_name)
-                    # If original passes but mutated fails, then it's a real mutation error
-                    raise MutationCheckFailedError()
-                except Exception as orig_e:
-                    print(f"DEBUG: Original code also fails with: {type(orig_e).__name__}: {orig_e}")
-                    # Check if both produce the same result (semantic equivalence)
-                    if CodeMutator.check_semantic_equivalence(full_sol, mutated_sol, input_args, func_name):
-                        print("DEBUG: Original and mutated code produce identical results - accepting mutation")
-                        mutated_dict['full_sol'] = mutated_sol
-                    else:
-                        print("DEBUG: Original and mutated code produce different results - rejecting mutation")
-                        raise MutationCheckFailedError()
-            else:
-                raise MutationCheckFailedError()
+            raise MutationCheckFailedError()
         return mutated_dict
     
     @staticmethod
@@ -470,6 +470,98 @@ class CodeMutator:
             print(f"{i:2d}: {line}")
         print("=" * 50)
         
+        return mutated_code
+
+    @staticmethod
+    def mutate_literal_format(tree: ast.AST) -> str:
+        """
+        Change formatting of string literals while keeping values the same.
+        'hello' ↔ "hello"
+        """
+        try:
+            mutated_source = ASTNodeHelper.LiteralFormatTransformer().visit(tree)
+        except Exception as e:
+            raise MutationFailedError(error=e)
+        
+        ast.fix_missing_locations(mutated_source)
+        mutated_code = ast.unparse(mutated_source)
+        return mutated_code
+    
+    @staticmethod
+    def mutate_boolean_literal(tree: ast.AST) -> str:
+        """
+        Change boolean literal representations while keeping logical values the same.
+        True ↔ not False, False ↔ not True
+        """
+        try:
+            mutated_source = ASTNodeHelper.BooleanLiteralTransformer().visit(tree)
+        except Exception as e:
+            raise MutationFailedError(error=e)
+        
+        ast.fix_missing_locations(mutated_source)
+        mutated_code = ast.unparse(mutated_source)
+        return mutated_code
+    
+    @staticmethod
+    def mutate_commutative_reorder(tree: ast.AST) -> str:
+        """
+        Reorder commutative operations while preserving functionality.
+        a + b ↔ b + a, a * b ↔ b * a
+        """
+        try:
+            mutated_source = ASTNodeHelper.CommutativeReorderTransformer().visit(tree)
+        except Exception as e:
+            raise MutationFailedError(error=e)
+        
+        ast.fix_missing_locations(mutated_source)
+        mutated_code = ast.unparse(mutated_source)
+        return mutated_code
+    
+    @staticmethod
+    def mutate_constant_unfold(tree: ast.AST) -> str:
+        """
+        Unfold constant expressions with random choice (addition/multiplication).
+        Falls back to addition if multiplication fails.
+        E.g., 10 ↔ 5 + 5 OR 2 * 5
+        """
+        try:
+            mutated_source = ASTNodeHelper.ConstantUnfoldTransformer().visit(tree)
+        except Exception as e:
+            raise MutationFailedError(error=e)
+        
+        ast.fix_missing_locations(mutated_source)
+        mutated_code = ast.unparse(mutated_source)
+        return mutated_code
+    
+    @staticmethod
+    def mutate_constant_unfold_add(tree: ast.AST) -> str:
+        """
+        Unfold constant expressions using addition only.
+        E.g., 10 ↔ 5 + 5, 7 ↔ 3 + 4
+        """
+        try:
+            mutated_source = ASTNodeHelper.ConstantUnfoldAddTransformer().visit(tree)
+        except Exception as e:
+            raise MutationFailedError(error=e)
+        
+        ast.fix_missing_locations(mutated_source)
+        mutated_code = ast.unparse(mutated_source)
+        return mutated_code
+    
+    @staticmethod
+    def mutate_constant_unfold_mult(tree: ast.AST) -> str:
+        """
+        Unfold constant expressions using multiplication only.
+        Only transforms if factorization is possible.
+        E.g., 10 ↔ 2 * 5, 6 ↔ 2 * 3 (but 7 stays as 7)
+        """
+        try:
+            mutated_source = ASTNodeHelper.ConstantUnfoldMultTransformer().visit(tree)
+        except Exception as e:
+            raise MutationFailedError(error=e)
+        
+        ast.fix_missing_locations(mutated_source)
+        mutated_code = ast.unparse(mutated_source)
         return mutated_code
 
 

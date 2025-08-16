@@ -128,7 +128,6 @@ class LLMConsistencyTester(CodeGenerationTester):
                         output_args = tuple(output_args)
 
                 input_args = eval(input_args) if isinstance(input_args, str) and input_metadata != str.__name__  else input_args
-
                 ## Dicionary containing the log entry
                 log_entry = {
                     "task_id": task_id,
@@ -175,25 +174,36 @@ class LLMConsistencyTester(CodeGenerationTester):
                 ## Handling Task Mutation (If any)
                 try: 
                     for mutation_type in mutation_dict.values():
-                        mutated_dict = codemutator.mutate_for_code_inconsistency_test(
-                            mutation_type = mutation_type,
-                            full_sol = full_sol,
-                            examples= examples,
-                            qn_desc= qn_desc,
-                            input_args= copy.deepcopy(input_args),
-                            output_args= output_args,
-                            input_metadata= input_metadata,
-                            task_set = task_set
-                        )
+                        if mutation_type is not None:  # Only attempt mutation if explicitly requested
+                            mutated_dict = codemutator.mutate_for_code_inconsistency_test(
+                                mutation_type = mutation_type,
+                                full_sol = full_sol,
+                                examples= examples,
+                                qn_desc= qn_desc,
+                                input_args= copy.deepcopy(input_args),
+                                output_args= output_args,
+                                input_metadata= input_metadata,
+                                task_set = task_set
+                            )
 
-                        full_sol = mutated_dict['full_sol']
-                        qn_desc = mutated_dict['qn_desc']
-                        examples = mutated_dict['examples']
+                            full_sol = mutated_dict['full_sol']
+                            qn_desc = mutated_dict['qn_desc']
+                            examples = mutated_dict['examples']
                         
                 except Exception as e:
-                    log_entry['failure_type'] = MutationFailedError(e)
-                    LLMConsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
-                    continue
+                    # If mutation was requested but failed, this is a critical error - do not continue with unmutated code
+                    requested_mutations = [m for m in mutation_dict.values() if m is not None]
+                    if requested_mutations:
+                        error_msg = f"MUTATION_FAILED: Requested mutation(s) {requested_mutations} failed - {type(e).__name__}: {e}"
+                        print(f"❌ {task_id}: {error_msg}")
+                        log_entry['failure_type'] = error_msg
+                        LLMConsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
+                        continue
+                    else:
+                        # If no mutation was requested, treat as unexpected error and continue
+                        log_entry['failure_type'] = f"UNEXPECTED_ERROR: {type(e).__name__} > {e}"
+                        LLMConsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
+                        continue
 
                 ## Formating of examples into doc test format for one shot/few shot prompts
                 if example_helper is not None:

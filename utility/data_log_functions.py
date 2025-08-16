@@ -61,10 +61,11 @@ class DataLogHelper:
         identical_mutation_errors = 0   # tasks with IdenticalMutationError
         both_succeeded = 0              # tasks where both logs succeeded
 
-        print(f"Starting comparison of {log1.shape[0]} tasks...")
+        total_tasks = log1.shape[0]
+        print(f"Starting comparison of {total_tasks} tasks...")
 
         ## Checking for inconsistencies between both logs
-        for idx in range(log1.shape[0]):
+        for idx in range(total_tasks):
             log1_data = log1.loc[idx]
             log1 = log1.drop(index = idx)
 
@@ -108,7 +109,7 @@ class DataLogHelper:
         #         unmatched_ids.add(task["task_id"])
 
         print(f"\n=== COMPARISON SUMMARY ===")
-        print(f"Total tasks processed: {log1.shape[0]}")
+        print(f"Total tasks processed: {total_tasks}")
         print(f"Both succeeded: {both_succeeded}")
         print(f"Both failed: {both_failed}")
         print(f"IdenticalMutationError: {identical_mutation_errors}")

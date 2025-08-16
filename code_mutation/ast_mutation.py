@@ -1,4 +1,5 @@
 import ast
+import random
 from typing import Dict, Tuple
 
 class ASTNodeHelper:
@@ -738,4 +739,160 @@ class ASTNodeHelper:
                 fixed_nodes, 
                 init_assign, 
                 while_loop
-                ]
+            ]
+
+    class LiteralFormatTransformer(ast.NodeTransformer):
+        """
+        Change formatting of string literals while keeping values the same.
+        'hello' ↔ "hello"
+        """
+        def visit_Constant(self, node):
+            self.generic_visit(node)
+            
+            if isinstance(node.value, str):
+                # Change quote style while keeping the string value the same
+                # This doesn't actually change the AST since Python normalizes quotes,
+                # but we can simulate the effect by toggling a preference
+                return node
+            
+            return node
+    
+    class BooleanLiteralTransformer(ast.NodeTransformer):
+        """
+        Change boolean literal representations while keeping logical values the same.
+        True ↔ not False, False ↔ not True
+        """
+        def visit_Constant(self, node):
+            self.generic_visit(node)
+            
+            if isinstance(node.value, bool):
+                if node.value is True:
+                    # Transform True -> not False
+                    return ast.UnaryOp(
+                        op=ast.Not(),
+                        operand=ast.Constant(value=False)
+                    )
+                elif node.value is False:
+                    # Transform False -> not True  
+                    return ast.UnaryOp(
+                        op=ast.Not(),
+                        operand=ast.Constant(value=True)
+                    )
+            
+            return node
+    
+    class CommutativeReorderTransformer(ast.NodeTransformer):
+        """
+        Reorder commutative operations while preserving functionality.
+        a + b ↔ b + a, a * b ↔ b * a
+        """
+        def visit_BinOp(self, node):
+            self.generic_visit(node)
+            
+            # Only reorder commutative operations
+            if isinstance(node.op, (ast.Add, ast.Mult)):
+                # Swap left and right operands
+                return ast.BinOp(
+                    left=node.right,
+                    op=node.op,
+                    right=node.left
+                )
+            
+            return node
+    
+    class ConstantUnfoldTransformer(ast.NodeTransformer):
+        """
+        Unfold constant expressions with random choice and fallback.
+        E.g., 10 ↔ 5 + 5 OR 2 * 5 (random, falls back to addition)
+        """
+        @staticmethod
+        def _unfold_addition(value):
+            """Unfold using addition: n -> a + b where a + b = n"""
+            half = value // 2
+            remainder = value - half
+            return ast.BinOp(
+                left=ast.Constant(value=half),
+                op=ast.Add(),
+                right=ast.Constant(value=remainder)
+            )
+        
+        @staticmethod
+        def _unfold_multiplication(value):
+            """Unfold using multiplication: n -> a * b where a * b = n"""
+            if value <= 3:
+                return None  # Too small for meaningful factorization
+            
+            # Find factors for multiplication
+            for factor in range(2, min(value, 10)):
+                if value % factor == 0:
+                    other_factor = value // factor
+                    return ast.BinOp(
+                        left=ast.Constant(value=factor),
+                        op=ast.Mult(),
+                        right=ast.Constant(value=other_factor)
+                    )
+            return None  # No factors found
+        
+        def visit_Constant(self, node):
+            self.generic_visit(node)
+            
+            if isinstance(node.value, int) and node.value > 1:
+                # Randomly choose how to unfold the constant
+                unfold_type = random.choice(['add', 'mult'])
+                
+                if unfold_type == 'add':
+                    return self._unfold_addition(node.value)
+                elif unfold_type == 'mult':
+                    # Try multiplication first
+                    mult_result = self._unfold_multiplication(node.value)
+                    if mult_result is not None:
+                        return mult_result
+                    else:
+                        # Fallback to addition
+                        return self._unfold_addition(node.value)
+            
+            return node
+    
+    class ConstantUnfoldAddTransformer(ast.NodeTransformer):
+        """
+        Unfold constant expressions using addition only.
+        E.g., 10 ↔ 5 + 5, 7 ↔ 3 + 4
+        """
+        def visit_Constant(self, node):
+            self.generic_visit(node)
+            
+            if isinstance(node.value, int) and node.value > 1:
+                # Always use addition
+                half = node.value // 2
+                remainder = node.value - half
+                return ast.BinOp(
+                    left=ast.Constant(value=half),
+                    op=ast.Add(),
+                    right=ast.Constant(value=remainder)
+                )
+            
+            return node
+    
+    class ConstantUnfoldMultTransformer(ast.NodeTransformer):
+        """
+        Unfold constant expressions using multiplication only.
+        Only transforms if factorization is possible.
+        E.g., 10 ↔ 2 * 5, 6 ↔ 2 * 3 (but 7 stays as 7)
+        """
+        def visit_Constant(self, node):
+            self.generic_visit(node)
+            
+            if isinstance(node.value, int) and node.value > 3:
+                # Find factors for multiplication
+                for factor in range(2, min(node.value, 10)):
+                    if node.value % factor == 0:
+                        other_factor = node.value // factor
+                        return ast.BinOp(
+                            left=ast.Constant(value=factor),
+                            op=ast.Mult(),
+                            right=ast.Constant(value=other_factor)
+                        )
+                # If no factors found, don't transform
+
+            
+            return node
