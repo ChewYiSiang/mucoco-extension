@@ -4,3 +4,5 @@ __pycache__
 *.csv
 x.py
 requirements.txt
+bigcodebenchvenv
+y.py

@@ -46,8 +46,8 @@ class DataLogHelper:
             raise ValueError("CSV column headers do not match.")
         
         ## Checking that both logs have the same number of entries
-        if log1.shape[0] != log2.shape[0]:
-            raise ValueError("Dataframe shapes are not equal. Double check the entries again.")
+        # if log1.shape[0] != log2.shape[0]:
+        #     raise ValueError("Dataframe shapes are not equal. Double check the entries again.")
 
         ## If either logs are empty, (0,0) is returned
         if log1.shape[0] == 0 or log2.shape[0] == 0:
@@ -73,7 +73,8 @@ class DataLogHelper:
             log_2_matched_data = log2[log2["task_id"] == task_id]
 
             if log_2_matched_data.shape[0] != 1:
-                raise  ValueError(f"Expected exactly one matched task_id in log_2, but found {log_2_matched_data.shape[0]} matched task_id.")
+                # raise  ValueError(f"Expected exactly one matched task_id in log_2, but found {log_2_matched_data.shape[0]} matched task_id.")
+                continue
 
             log2_data = log_2_matched_data.iloc[0]
             log2_data_index = log_2_matched_data.index[0]
@@ -82,14 +83,7 @@ class DataLogHelper:
             log1_result = log1_data['failure_type']
             log2_result = log2_data['failure_type']
 
-            # Check for IdenticalMutationError first
-            if "IdenticalMutationError" in str(log1_result) or "IdenticalMutationError" in str(log2_result):
-                identical_mutation_errors += 1
-            # Check if both failed (both are strings, not NaN)
-            elif not isinstance(log1_result, float) and not isinstance(log2_result, float):
-                both_failed += 1
-            # Count tasks where at least one succeeded
-            elif isinstance(log1_result, float) or isinstance(log2_result, float):
+            if (isinstance(log1_result, float) and not isinstance(log2_result, float)) or (isinstance(log2_result, float) and not isinstance(log1_result, float)) or (isinstance(log1_result, float) and isinstance(log2_result, float)):
                 tot += 1
                 # Check if both succeeded (both are NaN/float)
                 if isinstance(log1_result, float) and isinstance(log2_result, float):
@@ -99,8 +93,8 @@ class DataLogHelper:
                     log2_inconsistencies += 1
                     print(f"Task {task_id}: log1 succeeded, log2 failed ({log2_result})")
                 elif not isinstance(log1_result, float):
-                    log1_inconsistencies += 1
-                    print(f"Task {task_id}: log1 failed ({log1_result}), log2 succeeded")
+                    log1_inconsistencies +=1
+
 
         ## Checking if log1 have any remaining entries. This is not used now, but could come in handy in the future.
         # if log1.shape[0] > 0:

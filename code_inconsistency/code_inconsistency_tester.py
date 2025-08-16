@@ -1,6 +1,6 @@
-from code_inconsistency.utility.humaneval_functions import CodeInconsistencyHumanEvalHelper
+from code_inconsistency.utility.humaneval_helper import CodeInconsistencyHumanEvalHelper
+from code_inconsistency.utility.cruxeval_helper import CodeInconsistencyCruxEvalHelper
 from code_generation.code_generation_tester import CodeGenerationTester
-from code_inconsistency.prompt_templates.prompt_template import CodeInconsistencyPromptTemplate
 from code_mutation.mutation_functions import CodeMutator
 from llm_models.code_llms import CodeLLM
 from utility.constants import PromptTypes, LexicalMutations, SyntacticMutations, TaskTypes, CODE_INCONSISTENCY_PROMPT_CONFIG
@@ -9,6 +9,16 @@ from tqdm import tqdm
 import time
 import ast
 import copy
+import multiprocessing
+from llm_models.code_llms import Mistral
+
+
+
+def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: multiprocessing.Queue):
+    llm = Mistral()
+    ans = llm.invoke(input_variables=input_variables, prompt_template=prompt_template)
+    queue.put(ans)
+
 
 class LLMConsistencyTester(CodeGenerationTester):
     def __init__(self, qn_database: str = "HumanEval_Input_Output"):
@@ -19,13 +29,23 @@ class LLMConsistencyTester(CodeGenerationTester):
             return ast.literal_eval(prog)
         except Exception:
             return prog.strip('"').strip("'") if isinstance(prog, str) else prog
-            
-    def _run_code_consistency_test(
+    
+    def obtain_test_func_name(prog: str, examples: Dict, task_set: str) -> str:
+        match task_set:
+            case "CruxEval":
+                return CodeInconsistencyCruxEvalHelper.extract_func_name(prog)
+            case "HumanEval":
+                random_test_case = list(examples.keys())[0]
+                return CodeInconsistencyHumanEvalHelper.extract_func_name_from_example(random_test_case)
+            case _:
+                return None
+
+    def run_code_consistency_test(
             self,
-            llm: CodeLLM,
             prompt_helper: Callable[[], str], 
             output_file_path: str,
             prompt_type: str,
+            task_set: str,
             num_tests: int = None,
             continue_from_task: str = None,
             lexical_mutation: str = None,
@@ -34,7 +54,9 @@ class LLMConsistencyTester(CodeGenerationTester):
             specific_doc_ids: List[str] = None,
             task_type: str = TaskTypes.OUTPUT_PREDICTION,
     ) -> int:
-        
+        # integer storing the number of seconds that the llm should return its answer by
+        llm_timeout = 5
+                
         if prompt_type != 'zero_shot' and example_helper is None:
             raise ValueError("A non zero-shot prompt is used, yet no example helper function was given. Add the approrpriate example_helper for this prompt template.")
         
@@ -74,8 +96,11 @@ class LLMConsistencyTester(CodeGenerationTester):
 
         task_pass_count = 0             # int variable tracking the number of tasks that have passed
         failed_validity = []            # list storing the test case id that have failed the check functions
+
         try:                            # try statement to catch any potential errors arising from using free APIs. These APIs are usually unstable and can crash at any time. 
-            for task_id in tqdm(test_docs):
+            for idx in tqdm(range(continue_from, continue_from + num_tests)):
+                task_id = f"{task_set}TF{idx}"
+
                 qn_sample = self.question_database.find_one({"_id": task_id})
                 if qn_sample is None:                               # next task if unable to extract the specific qn id from MongoDB
                     print(f"Document {task_id} not found in database")
@@ -84,8 +109,8 @@ class LLMConsistencyTester(CodeGenerationTester):
                 prompt_template = prompt_helper()
             
                 full_sol = qn_sample['full_sol']                    # full canonical solution for the task
-                qn_desc = qn_sample['qn_desc']                      # task description. This should be the extracted doc string from the original task
-                examples = qn_sample['examples']                    # examples for other prompt techniques like one shot, few shot
+                qn_desc = qn_sample.get('qn_desc', "")              # task description. This should be the extracted doc string from the original task
+                examples = qn_sample.get('examples', {})            # examples for other prompt techniques like one shot, few shot
 
                 test_inputs = qn_sample['input']                    # unpacking input args and metadata from qn
                 input_args = test_inputs['args']                    # test input args
@@ -97,27 +122,32 @@ class LLMConsistencyTester(CodeGenerationTester):
                 
                 if output_metadata == type(None).__name__:
                     output_metadata = "type(None)"
+                
                 if not isinstance(output_args, str) and not isinstance(eval(str(output_args)), eval(output_metadata)):
                     if eval(output_metadata) == tuple:
                         output_args = tuple(output_args)
 
-                #input_args = eval(input_args) if isinstance(input_args, str) and input_metadata != str.__name__  else input_args
+                input_args = eval(input_args) if isinstance(input_args, str) and input_metadata != str.__name__  else input_args
                 ## Dicionary containing the log entry
                 log_entry = {
                     "task_id": task_id,
                     "prompt": None,
                     "model_output": None,
-                    "expected_output": test_outputs,
+                    "expected_output": test_outputs if task_type == TaskTypes.OUTPUT_PREDICTION else test_inputs,
                     "failure_type": None
                 }
 
-                if prompt_type == PromptTypes.FEW_SHOT and len(examples.keys()) <= 1:
-                    log_entry['failure_type'] = 'InsufficientExamplesError'
+                ## Sanity check ensuring that the tasks fulfill the minimum requirements for each prompt type.
+                if prompt_type == PromptTypes.ONE_SHOT and len(examples.keys()) < 1:
+                    log_entry['failure_type'] = 'InsufficientExamplesError > Less than 1 example provided, invalid task for one shot prompting'
                     LLMConsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
                     continue
-
-                random_test_case = list(examples.keys())[0]
-                func_name = CodeInconsistencyHumanEvalHelper.extract_func_name_from_example(random_test_case)
+                elif prompt_type == PromptTypes.FEW_SHOT and len(examples.keys()) <= 1:
+                    log_entry['failure_type'] = 'InsufficientExamplesError > Less than 2 example provided, invalid task for few shot prompting'
+                    LLMConsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
+                    continue
+                
+                func_name = LLMConsistencyTester.obtain_test_func_name(prog = full_sol, examples = examples, task_set = task_set)
 
                 ## Processing of output args and metadata
                 output_args = ast.literal_eval(output_args) if output_metadata != str.__name__ else output_args
@@ -137,18 +167,23 @@ class LLMConsistencyTester(CodeGenerationTester):
                     failed_validity.append(task_id)
                     print(f"Skipping {task_id} as the complete solution did not pass the check function.")
                     continue
+
+                ## Instantiating a codemutator object
+                codemutator = CodeMutator(func_name=func_name)
                 
                 ## Handling Task Mutation (If any)
                 try: 
                     for mutation_type in mutation_dict.values():
                         if mutation_type is not None:  # Only attempt mutation if explicitly requested
-                            mutated_dict = CodeMutator.mutate_for_code_inconsistency_test(
+                            mutated_dict = codemutator.mutate_for_code_inconsistency_test(
                                 mutation_type = mutation_type,
                                 full_sol = full_sol,
                                 examples= examples,
                                 qn_desc= qn_desc,
                                 input_args= copy.deepcopy(input_args),
-                                output_args= output_args
+                                output_args= output_args,
+                                input_metadata= input_metadata,
+                                task_set = task_set
                             )
 
                             full_sol = mutated_dict['full_sol']
@@ -185,7 +220,30 @@ class LLMConsistencyTester(CodeGenerationTester):
                 log_entry["prompt"] = prompt_template.format(**input_variables)            # storing formatted prompt into database entry
 
                 ## Running the llm on the input variables and the prompt template
-                ans =  llm.invoke(input_variables=input_variables, prompt_template=prompt_template)
+                multiprocessing_queue = multiprocessing.Queue()
+
+                verify_answer_process = multiprocessing.Process(
+                    target= invoke_llm,
+                    kwargs={
+                        "input_variables": input_variables,
+                        "prompt_template": prompt_template,
+                        "queue": multiprocessing_queue
+                    }
+                )
+
+                verify_answer_process.start()
+                verify_answer_process.join(timeout=llm_timeout)
+
+                if verify_answer_process.is_alive():
+                    verify_answer_process.kill()
+                    verify_answer_process.join()
+                    log_entry['failure_type'] = f"{type(RuntimeError()).__name__} > LLM could not answer the task within {llm_timeout} seconds."
+                    LLMConsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
+                    continue
+
+                if not multiprocessing_queue.empty():
+                    ans = multiprocessing_queue.get()
+
                 ans = LLMConsistencyTester.process_llm_ans(ans)
                 log_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
                 ## Running the formatted prompt into the LLM
@@ -198,14 +256,17 @@ class LLMConsistencyTester(CodeGenerationTester):
                     if isinstance(e, AssertionError):
                         pass
                         # print(f"{task_id}: Function failed to run due to following error: {type(e)} > {e}")
+                    elif isinstance(e, RuntimeError):
+                        e = RuntimeError(f"LLM did not complete answering the question within the given timeout of {llm_timeout} seconds")
                     else:
-                        print(f"{task_id}: Could not run the LLM answer due to the following error {type(e)} > {e}")
+                        print(f"{task_id}: Could not run the LLM answer due to the following error: {type(e)} > {e}")
                     log_entry['failure_type'] = f"{type(e).__name__} > {e}"
                 
                 ## Logging data into the csv file
                 LLMConsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
 
                 time.sleep(2)
+
 
             return task_pass_count
         
@@ -218,6 +279,10 @@ class LLMConsistencyTester(CodeGenerationTester):
         except KeyboardInterrupt:
             print(task_id)
             return task_pass_count
+
+class MutationFailedError(Exception):
+    def __init__(self, error):
+        super().__init__(f"Mutation failed due to the following error: {type(error).__name__} > {error}")
 
 if __name__ == "__main__":
     llm_tester = LLMConsistencyTester("HumanEval_Open_Ended")
