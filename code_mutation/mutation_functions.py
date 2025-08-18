@@ -8,20 +8,30 @@ import re
 from code_mutation.ast_mutation import ASTNodeHelper
 from code_inconsistency.utility.humaneval_helper import CodeInconsistencyHumanEvalHelper
 from code_inconsistency.utility.cruxeval_helper import CodeInconsistencyCruxEvalHelper
+from mcq_inconsistency.utility.codemmlu_helper import CodeGenerationCodeMMLUHelper
+from code_generation.utility.bigcodebench_helper import CodeGenerationBigCodeBenchHelper
+from code_generation.utility.humaneval_helper import CodeGenerationHumanEvalHelper
 
-from utility.constants import SyntacticMutations, LexicalMutations
+from utility.constants import Mutations, CodeMMLU, MCQInconsistency, CodeGeneration, Benchmarks
 
-FOR2WHILE = "for2while"
-FOR2ENUMERATE = "for2enumerate"
-DEMORGAN = "demorgan"
-RANDOM_MUTATION = "random"
-SEQUENTIAL_MUTATION = "sequential"
-LITERAL_FORMAT = "literal_format"
-BOOLEAN_LITERAL = "boolean_literal"
-COMMUTATIVE_REORDER = "commutative_reorder"
-CONSTANT_UNFOLD = "constant_unfold"
-CONSTANT_UNFOLD_ADD = "constant_unfold_add"
-CONSTANT_UNFOLD_MULT = "constant_unfold_mult"
+# Declaring mutation names
+FOR2WHILE = Mutations.SyntacticMutations.FOR2WHILE
+FOR2ENUMERATE = Mutations.SyntacticMutations.FOR2ENUMERATE
+DEMORGAN = Mutations.LogicalMutations.DEMORGAN
+RANDOM_MUTATION = Mutations.LexicalMutations.RANDOM
+SEQUENTIAL_MUTATION = Mutations.LexicalMutations.SEQUENTIAL
+LITERAL_FORMAT = Mutations.LogicalMutations.LITERAL_FORMAT
+BOOLEAN_LITERAL = Mutations.LogicalMutations.BOOLEAN_LITERAL
+COMMUTATIVE_REORDER = Mutations.LogicalMutations.COMMUTATIVE_REORDER
+CONSTANT_UNFOLD = Mutations.LogicalMutations.CONSTANT_UNFOLD
+CONSTANT_UNFOLD_ADD = Mutations.LogicalMutations.CONSTANT_UNFOLD_ADD
+CONSTANT_UNFOLD_MULT = Mutations.LogicalMutations.CONSTANT_UNFOLD_MULT
+
+# Declaring benchmark names
+BIGCODEBENCH = Benchmarks.BigCodeBench.NAME
+CODEMMLU = Benchmarks.CodeMMLU.NAME
+HUMANEVAL = Benchmarks.HumanEval.NAME
+CRUXEVAL = Benchmarks.CruxEval.NAME
 
 def run_llm_answer(mutated_sol: str, expected_output: Any, func_name: str, test_input: Any = 'no_input', mp_queue = multiprocessing.Queue):
         namespace = {}
@@ -42,10 +52,9 @@ def run_llm_answer(mutated_sol: str, expected_output: Any, func_name: str, test_
 class CodeMutator:
     # Main class for applying various types of code mutations while preserving functionality.
     
-    mutation_types = [FOR2ENUMERATE, FOR2WHILE, DEMORGAN, RANDOM_MUTATION, SEQUENTIAL_MUTATION, LITERAL_FORMAT, BOOLEAN_LITERAL, COMMUTATIVE_REORDER, CONSTANT_UNFOLD, CONSTANT_UNFOLD_ADD, CONSTANT_UNFOLD_MULT]
-
-    def __init__(self, func_name: str):
+    def __init__(self, func_name: str, mutated_dict: Dict[str, Any]):
         self.func_name = func_name
+        self.mutated_dict = mutated_dict
 
     @classmethod
     def code_masking(original_code : str, mask_type : List[str] = ["var"]) -> str:
@@ -129,7 +138,6 @@ class CodeMutator:
             print(f"DEBUG: Semantic equivalence check failed: {e}")
             return False
 
-    @staticmethod
     def check_solution_validity(
         self,
         program: str,
@@ -170,7 +178,215 @@ class CodeMutator:
         if not multiprocessing_queue.empty():
             e = multiprocessing_queue.get()
             raise e
+        
+    def mutate_for_code_generation(
+            self,
+            mutation_type:str,
+            task_set: str,
+        ):
+        timeout = 10
 
+        if task_set == BIGCODEBENCH:
+            test_set_helper = CodeGenerationBigCodeBenchHelper
+        elif task_set == HUMANEVAL:
+            test_set_helper = CodeGenerationHumanEvalHelper
+        elif task_set not in CodeGeneration.BENCHMARKS:
+            raise ValueError("Invalid benchmark data used for CodeGeneration testing")
+        else:
+            raise ValueError(f"Did not set up {task_set} for CodeGeneration testing")
+
+        try: 
+            tree = ast.parse(self.mutated_dict['question'])
+        except IndentationError:
+            self.mutated_dict['question'] += "\n" + "    pass"
+            tree = ast.parse(self.mutated_dict['question'])
+
+        try: 
+            mutated_sol = self.handle_mutation(
+                mutation_type=mutation_type,
+                task_set=task_set,
+                tree = tree,
+                check_function= self.mutated_dict['check_function']
+            )
+
+            self.mutated_dict['question'] = mutated_sol
+
+        except Exception as e:
+            raise MutationFailedError(e)
+        
+        try:
+            multiprocessing_queue = multiprocessing.Queue()
+
+            verify_answer_process = multiprocessing.Process(        
+            target= test_set_helper.run_llm_answer,
+            args = (self.mutated_dict['full_sol'], self.mutated_dict['check_function'], self.func_name, multiprocessing_queue)
+            )
+            
+            verify_answer_process.start()
+            verify_answer_process.join(timeout=timeout)
+
+            over_run = False
+            if verify_answer_process.is_alive():
+                verify_answer_process.kill()
+                verify_answer_process.join()
+                over_run = True
+
+            self.mutated_dict['question'] = mutated_sol
+
+            if not multiprocessing_queue.empty():
+                error = multiprocessing_queue.get()
+                raise error
+            elif over_run:
+                raise RuntimeError
+
+        except Exception as e:
+            print(f"DEBUG: Mutation check failed with error: {type(e).__name__}: {e}")
+            raise MutationCheckFailedError(e)
+        
+    def mutate_for_mcq_inconsistency(
+            self,
+            mutation_type:str,
+            task_set: str,
+            correct_answer_idx: int,
+            task_type: str = CodeMMLU.Tasks.CODE_COMPLETION
+        ):
+
+        timeout = 10
+        contains_pass = False
+
+        if task_type == CodeMMLU.Tasks.CODE_COMPLETION:
+            test_set_helper = CodeGenerationCodeMMLUHelper
+        elif task_type not in [attr for attr in dir(CodeMMLU) if not attr.startswith("_")]:
+            raise ValueError("Input task type is invalid")
+
+        if task_set not in MCQInconsistency.BENCHMARKS:
+            raise ValueError("Invalid benchmark data used for MCQInconsistency testing")
+
+        try: 
+            tree = ast.parse(self.mutated_dict['question'])
+        except IndentationError:
+            contains_pass = True
+            self.mutated_dict['question'] += "\n" + "    pass"
+            tree = ast.parse(self.mutated_dict['question'])
+
+        if mutation_type in (FOR2WHILE, FOR2ENUMERATE):
+            for_loop_checker = ASTNodeHelper.ForLoopDetectorNodeVisitor()
+            for_loop_checker.visit(tree)
+            for_loop_exists = for_loop_checker.for_loop_exisits
+
+            if for_loop_exists == False:
+                raise NoForLoopError()
+        
+        try: 
+            mutated_sol = self.handle_mutation(
+                mutation_type=mutation_type,
+                task_set=task_set,
+                tree = tree,
+                input_args= None,
+            )
+
+            if contains_pass == True:
+                temp = mutated_sol.splitlines()
+                mutated_sol = '\n'.join(temp[:-1])
+            
+            mutated_full_sol = mutated_sol + "\n" + self.mutated_dict['choices'][correct_answer_idx]
+
+        except Exception as e:
+            raise MutationFailedError(e)
+
+        ## Checking if the mutated solution is identical to the original solution
+        try:
+            if mutation_type in (FOR2ENUMERATE, FOR2WHILE, DEMORGAN):
+                assert CodeMutator.standardize_program(mutated_sol) != CodeMutator.standardize_program(mutated_full_sol)
+        except:
+            raise IdenticalMutationError()
+        
+        try:
+            multiprocessing_queue = multiprocessing.Queue()
+
+            verify_answer_process = multiprocessing.Process(        
+            target= test_set_helper.run_llm_answer,
+            args = (mutated_full_sol, self.mutated_dict['check_function'], self.func_name, multiprocessing_queue)
+            )
+            
+            verify_answer_process.start()
+            verify_answer_process.join(timeout=timeout)
+
+            over_run = False
+            if verify_answer_process.is_alive():
+                verify_answer_process.kill()
+                verify_answer_process.join()
+                over_run = True
+
+            self.mutated_dict['question'] = mutated_sol
+
+            if not multiprocessing_queue.empty():
+                error = multiprocessing_queue.get()
+                raise error
+            elif over_run:
+                raise RuntimeError
+
+        except Exception as e:
+            print(f"DEBUG: Mutation check failed with error: {type(e).__name__}: {e}")
+            raise MutationCheckFailedError(e)
+    
+    def handle_mutation(
+            self, 
+            mutation_type: str,
+            task_set: str,
+            tree: ast.AST,
+            input_args: Any = None,
+            choices: List[str] = None,
+            check_function: str = None, 
+    ) -> str:
+        
+        full_sol = self.mutated_dict['question']
+        qn_desc = self.mutated_dict['qn_desc']
+        examples = self.mutated_dict['examples']
+        check_function = self.mutated_dict.get('check_function', None)
+        choices = self.mutated_dict.get('choices', None)
+
+        try:
+            if mutation_type == FOR2WHILE:
+                if task_set in (HUMANEVAL, ):
+                    input_metadata = CodeInconsistencyHumanEvalHelper.extract_input_metadata(examples = examples, qn = full_sol)
+                elif task_set in (CRUXEVAL, ):
+                    input_metadata = CodeInconsistencyCruxEvalHelper.extract_input_metadata(prog=full_sol, test_input=input_args)
+                variable_metadata = CodeMutator.obtain_variable_types(tree, input_metadata)
+                merged_metadata = input_metadata | variable_metadata
+                mutated_sol = CodeMutator.mutate_for_to_while(tree = tree, input_metadata=merged_metadata)  
+                # print(full_sol)
+                # print(mutated_sol)
+            elif mutation_type == FOR2ENUMERATE:
+                mutated_sol = CodeMutator.mutate_for_to_enumerate(tree = tree)
+                
+            elif mutation_type == DEMORGAN:
+                mutated_sol = CodeMutator.mutate_demorgan(source = full_sol)
+                
+            elif mutation_type in (SEQUENTIAL_MUTATION, RANDOM_MUTATION):
+                func_names, var_names = CodeMutator.obtain_key_info_from_code(tree)
+                mutated_sol = self.mutate_variable_names(
+                    tree=tree, 
+                    qn_desc= qn_desc,
+                    examples= examples,
+                    func_names=func_names, 
+                    mutation_type=mutation_type,
+                    var_names=var_names,
+                    choices = choices,
+                    check_function=check_function
+                )
+
+            elif mutation_type == None:
+                mutated_sol = CodeMutator.parse_through_ast(tree)
+
+            else:
+                raise InvalidMutationTypeError(mutation_type= mutation_type, allowed_types=CodeMutator.mutation_types)
+            
+        except Exception as e:
+            raise e
+        
+        return mutated_sol
+    
     def mutate_for_code_inconsistency_test(
         self,
         mutation_type: str | None, 
@@ -350,21 +566,30 @@ class CodeMutator:
         mutated_source = ast.unparse(mutated_source)
         return mutated_source
 
-    @staticmethod
     def mutate_variable_names( 
+        self,
         tree: ast.AST,
         qn_desc: str,
         examples: List[str],
         func_names: List[str],
         mutation_type : str,
         var_names: List[str] = None,
+        choices: List[str] = None,
+        check_function : str = None,
+
     ) -> Tuple[str, str, str, Dict[str, str]]:
         # 1) Build rename mapping for all identifiers
-
         rename_map = {}
+
+        full_sol = self.mutated_dict['full_sol']
+
         if mutation_type.strip().lower() == SEQUENTIAL_MUTATION:
+            # for loop iterating through each function name
             for idx, name in enumerate(func_names, start=1):
+                # updating the corresponding function name in the rename_map dictionary
                 rename_map[name] = f"generic_function{idx}"
+            
+            # if statement checking for any variable names
             if var_names:
                 for idx, name in enumerate(var_names, start=1):
                     rename_map[name] = f"var{idx}"
@@ -398,13 +623,41 @@ class CodeMutator:
             func_name = 'task_func'
             pattern = r'\btask_func\b'
             mutated_test_case = re.sub(pattern, rename_map[func_name], examples)
-                
+        
         # 5) Applying mutation onto question description, should the original function name appear in there.
         for name in rename_map:
             regex_pattern = rf'\b{re.escape(name)}\b'
             qn_desc = re.sub(regex_pattern, rename_map[name], qn_desc)
 
-        return mutated_source, mutated_test_case, qn_desc, rename_map
+        # Applying mutation onto question choices, for MCQInconsistency mutation cases
+        if choices is not None:
+            for idx, choice in enumerate(choices):
+                new_choice = choice  # work on a copy
+                for name in rename_map:
+                    pattern = r'\b{}\b'.format(re.escape(name))  # safe + whole word
+                    new_choice = re.sub(pattern, rename_map[name], new_choice)
+                choices[idx] = new_choice
+        
+        if check_function is not None:
+            for name in rename_map:
+                pattern = r'\b{}\b'.format(re.escape(name))  # safe + whole word
+                check_function = re.sub(pattern, rename_map[name], check_function)
+
+        if full_sol is not None:
+            full_sol_tree = ast.parse(full_sol)
+            mutated_full_sol = var_name_transformer.visit(full_sol_tree)
+            ast.fix_missing_locations(mutated_full_sol)
+            mutated_full_sol = ast.unparse(mutated_full_sol)
+            self.mutated_dict['full_sol'] = mutated_full_sol
+
+
+        self.func_name = rename_map[self.func_name]
+        self.mutated_dict['examples'] = examples
+        self.mutated_dict['qn_desc'] = qn_desc
+        self.mutated_dict['choices'] = choices
+        self.mutated_dict['check_function'] = check_function
+
+        return mutated_source
     
     @staticmethod
     def generate_random_name() -> str:
