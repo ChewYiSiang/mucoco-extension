@@ -1,4 +1,4 @@
-from code_inconsistency.prompt_templates.prompt_template import CodeInconsistencyPromptTemplate
+# from code_inconsistency.prompt_templates.prompt_template import CodeInconsistencyPromptTemplate
 from typing import Callable
 
 class PromptTypes:
@@ -14,10 +14,10 @@ class Mutations:
     class LexicalMutations:
         RANDOM = 'random'                                       # randomly mutate function and input variable names
         SEQUENTIAL = 'sequential'                               # mutate funciton and input variable names into a genetic naming convention
+        LITERAL_FORMAT = "literal_format"                       # standardises strings from "hello" to 'hello' and vice versa
 
     class LogicalMutations:
         DEMORGAN = 'demorgan'                                   # applies demorgan transformation onto boolean statements
-        LITERAL_FORMAT = "literal_format"                       # standardises strings from "hello" to 'hello' and vice versa
         BOOLEAN_LITERAL = "boolean_literal"                     # converts boolean literal representations: E.g.: True -> not False
         COMMUTATIVE_REORDER = "commutative_reorder"             # applied functionality preserving commutative operations
 
@@ -45,6 +45,9 @@ class Benchmarks:
         NAME = "CruxEval"
 
 CodeMMLU = Benchmarks.CodeMMLU
+HumanEval = Benchmarks.HumanEval
+BigCodeBench = Benchmarks.BigCodeBench
+CruxEval = Benchmarks.CruxEval
 
 class Tasks:
     class CodeGeneration:
@@ -56,52 +59,50 @@ class Tasks:
     class MCQInconsistency:
         NAME = "mcq_inconsistency"
         BENCHMARKS = (Benchmarks.CodeMMLU.NAME,)
-        MUTATIONS = [m for m in dir(Mutations.SyntacticMutations) if not m.startswith("__")] + [m for m in dir(Mutations.LogicalMutations) if not m.startswith("__")]
-
-
-    class CodeInconsistency:
+        MUTATIONS = [getattr(LexicalMutations, m) for m in dir(LexicalMutations) if not m.startswith("__")] + [getattr(LogicalMutations, m) for m in dir(LogicalMutations) if not m.startswith("__")]
         
-        class OutputPrediction:
-            NAME = "output_prediction"
-
-        class InputPrediction:
-            NAME = "input_prediction"
-
+    class OutputPrediction:
+        NAME = "output_prediction"
         BENCHMARKS = (Benchmarks.HumanEval.NAME, Benchmarks.CruxEval.NAME)
         MUTATIONS = [
-            m for m in dir(Mutations.SyntacticMutations) if not m.startswith("__")] + [
-            m for m in dir(Mutations.LogicalMutations) if not m.startswith("__")] + [
-            m for m in dir(Mutations.LexicalMutations) if not m.startswith("__")
+            getattr(SyntacticMutations, m) for m in dir(SyntacticMutations) if not m.startswith("__")] + [
+            getattr(LogicalMutations, m) for m in dir(LogicalMutations) if not m.startswith("__")] + [
+            getattr(LexicalMutations, m) for m in dir(LexicalMutations) if not m.startswith("__")
             ]
 
+    class InputPrediction(OutputPrediction):
+        NAME = "input_prediction"
 
-MCQInconsistency = Tasks.MCQInconsistency
-CodeGeneration = Tasks.CodeGeneration
-
-class PromptConfig:
-    def __init__(self, prompt_helper: Callable, example_helper: Callable | None):
-        self.prompt_helper = prompt_helper
-        self.example_helper = example_helper
-
-CODE_INCONSISTENCY_PROMPT_CONFIG ={
-    "general" : {
-        "zero_shot" : PromptConfig(
-            prompt_helper = CodeInconsistencyPromptTemplate.OutputPrediction.zero_shot_prompt, 
-            example_helper = None
-            ),
-        "one_shot": PromptConfig(
-            prompt_helper = CodeInconsistencyPromptTemplate.OutputPrediction.one_shot_prompt, 
-            example_helper = CodeInconsistencyPromptTemplate.structure_one_shot_example
-            ),
-        "few_shot" : PromptConfig(
-            prompt_helper = CodeInconsistencyPromptTemplate.OutputPrediction.few_shot_prompt,
-            example_helper = CodeInconsistencyPromptTemplate.structure_few_shot_examples
-        ),
-    },
-    "llama": {
-        "zero_shot" : {},
-        "one_shot": {},
-        "few_shot" : {},
         
-    }
-}
+CodeGeneration = Tasks.CodeGeneration
+MCQInconsistency = Tasks.MCQInconsistency
+OutputPrediction = Tasks.OutputPrediction
+InputPrediction = Tasks.InputPrediction
+
+# class PromptConfig:
+#     def __init__(self, prompt_helper: Callable, example_helper: Callable | None):
+#         self.prompt_helper = prompt_helper
+#         self.example_helper = example_helper
+
+# CODE_INCONSISTENCY_PROMPT_CONFIG ={
+#     "general" : {
+#         "zero_shot" : PromptConfig(
+#             prompt_helper = CodeInconsistencyPromptTemplate.OutputPrediction.zero_shot_prompt, 
+#             example_helper = None
+#             ),
+#         "one_shot": PromptConfig(
+#             prompt_helper = CodeInconsistencyPromptTemplate.OutputPrediction.one_shot_prompt, 
+#             example_helper = CodeInconsistencyPromptTemplate.structure_one_shot_example
+#             ),
+#         "few_shot" : PromptConfig(
+#             prompt_helper = CodeInconsistencyPromptTemplate.OutputPrediction.few_shot_prompt,
+#             example_helper = CodeInconsistencyPromptTemplate.structure_few_shot_examples
+#         ),
+#     },
+#     "llama": {
+#         "zero_shot" : {},
+#         "one_shot": {},
+#         "few_shot" : {},
+        
+#     }
+# }

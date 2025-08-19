@@ -271,6 +271,7 @@ class ASTNodeHelper:
                     ]
             else:                    
                 return [node]
+            
     class DeMorganTransformer(ast.NodeTransformer):
         def __init__(self):
             pass

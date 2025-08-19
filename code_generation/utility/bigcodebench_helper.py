@@ -136,6 +136,7 @@ class CodeGenerationBigCodeBenchHelper(DatabaseHelper):
             )
 
         namespace = {}
+
         try:
             exec(processed_output, namespace)
             exec(test_function, namespace)
@@ -148,6 +149,7 @@ class CodeGenerationBigCodeBenchHelper(DatabaseHelper):
         with contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
             result = unittest.TextTestRunner(stream=f, verbosity=2).run(suite)
             plt.close('all')  # Close all open figures
+
         if len(result.errors) > 0:          # indicating that some error has been caught
             mp_queue.put(LLMAnswerFailedError(result.errors))
 

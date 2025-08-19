@@ -164,39 +164,7 @@ class CodeGenerationHumanEvalHelper(DatabaseHelper):
 
         return (func_name_preserved, "\n".join(processed_lines))
     
-    def extract_func_name_from_example(code: str) -> str | None:
-        """
-        Run this function on the test examples to obtain the true function names.
-
-        This function is needed to circumvent the issue where there are more than 1 function in the given task and 
-        we need to discern between the true task function and the helper function for testing
-
-        E.g.: 
-        test_case = 'round(find_zero([1, 2]), 2) # f(x) = 1 + 2x'
-        extract_func_name(test_case) == 'find_zero'
-        
-        Args:
-            code (str): The example extracted from question description
-
-        Returns:
-            str : The extracted function name
-
-        """
-        t = ast.parse(code)                 # parsing the string code to obtain the AST
-        for node in t.body:                 # for loop iterating through each node in the the AST
-            if isinstance(node, ast.Expr) and isinstance(node.value, ast.Call):                      
-                func_name = node.value.func.id                # obtaining the function name
-                func_args = node.value.args                   # obtaining the function args
-                if hasattr(builtins, func_name):              # if statement checking if the function is a built in python function. If so, this means that this function cannot be the "task function"
-                    for arg in func_args:                   
-                        if isinstance(arg, ast.Call):       
-                            subnode = ast.unparse(arg)
-                            return CodeGenerationHumanEvalHelper.extract_func_name_from_example(subnode)
-                else:
-                    return func_name
-            else:
-                raise ValueError("Could not extract the function name.")
-            
+    
     @staticmethod
     def run_llm_answer(
         processed_output: str, 

@@ -1,13 +1,15 @@
 from mcq_inconsistency.utility.codemmlu_helper import CodeGenerationCodeMMLUHelper
 from code_generation.code_generation_tester import CodeGenerationTester
 from code_mutation.mutation_functions import CodeMutator
-from utility.constants import PromptTypes, Tasks
+from utility.constants import PromptTypes, Tasks, MCQInconsistency, CodeMMLU
 from typing import Callable, Dict, Any, List
 from tqdm import tqdm
 import time
 import ast
 import multiprocessing
 from llm_models.code_llms import Mistral
+from code_mutation.mutation_relations import check_for_mutation_conflicts
+
 
 
 ANS_DICT = {
@@ -39,13 +41,11 @@ class LLMMCQInconsistencyTester(CodeGenerationTester):
             output_file_path: str,
             prompt_type: str,
             task_set: str,
-            num_tests: int = None,
+            num_tests: int,
             continue_from_task: str = None,
-            lexical_mutation: str = None,
-            syntactic_mutation: str = None,
+            mutations: List[str] = None,
             example_helper: Callable[[Dict[str, str]], str] = None,
-            specific_doc_ids: List[str] = None,
-            task_type: str = Tasks.CodeInconsistency.OutputPrediction,
+            task_type: str = Tasks.OutputPrediction,
     ) -> int:
         # integer storing the number of seconds that the llm should return its answer by
         llm_timeout = 20
@@ -53,43 +53,29 @@ class LLMMCQInconsistencyTester(CodeGenerationTester):
         if prompt_type != 'zero_shot' and example_helper is None:
             raise ValueError("A non zero-shot prompt is used, yet no example helper function was given. Add the approrpriate example_helper for this prompt template.")
         
-        if num_tests is None and specific_doc_ids is None:
-            raise ValueError("Either num_tests or specific_doc_ids must be provided.")
-        
         if continue_from_task is not None:
             continue_from = int(continue_from_task.split('MCQ')[-1])
         else:
             continue_from = 0
 
-        ## Dictionary storing the types of lexical mutation and syntactic mutation
-        mutation_dict = {
-            "lexical_mutation" : lexical_mutation,
-            "syntactic_mutation" : syntactic_mutation
-        }
+        num_tests = min(self.question_database.count_documents({}) - continue_from, num_tests)         # ensuring that the number of iterations is lower than max number of documents in the db
+        
+        if not check_for_mutation_conflicts(mutations=mutations):
+            raise ValueError("An invalid combination of mutations were used.")
 
-        for mutation in mutation_dict.values():
-            if mutation is not None and mutation not in CodeMutator.mutation_types:
-                raise ValueError(f"An invalid type of mutation is used. Only {CodeMutator.mutation_types} type of mutations are valid.")
+        for mutation in mutations:
+            if mutation not in MCQInconsistency.MUTATIONS:
+                raise ValueError(f"{mutation} mutation is an invalid mutation for mcq inconsistency.")
+            
+        if task_set not in MCQInconsistency.BENCHMARKS:
+            raise ValueError(f"{task_set} is an invalid benchmark dataset for mcq inconsistency. Only {MCQInconsistency.BENCHMARKS} datasets are valid.")
 
-        # Determine which documents to test
-        if specific_doc_ids is not None:
-            # Use specific document IDs
-            if num_tests is not None:
-                test_docs = specific_doc_ids[:num_tests]  # Limit to num_tests if specified
-            else:
-                test_docs = specific_doc_ids  # Use all provided documents
-            print(f"Testing {len(test_docs)} specific documents")
-        else:
-            # Use original sequential approach
-            if num_tests is None:
-                raise ValueError("num_tests must be provided when specific_doc_ids is not used.")
-            num_tests = min(num_tests, self.question_database.count_documents({}) - continue_from)
-            test_docs = [f"HumanEvalTF{idx}" for idx in range(continue_from, continue_from + num_tests)]
-            print(f"Testing documents from HumanEvalTF{continue_from} to HumanEvalTF{continue_from + num_tests - 1}")
+        valid_task_types = [getattr(CodeMMLU.Tasks, t) for t in dir(CodeMMLU.Tasks) if not t.startswith("__")]
+        if task_type not in valid_task_types:
+            raise ValueError(f"{task_type} is an invalid benchmark dataset for mcq inconsistency. Only {valid_task_types} task types are valid.")
 
         task_pass_count = 0             # int variable tracking the number of tasks that have passed
         failed_validity = []            # list storing the test case id that have failed the check functions
-
         try:                            # try statement to catch any potential errors arising from using free APIs. These APIs are usually unstable and can crash at any time. 
             for idx in tqdm(range(continue_from, continue_from + num_tests)):
                 task_id = f"{task_set}{idx}"
@@ -151,24 +137,25 @@ class LLMMCQInconsistencyTester(CodeGenerationTester):
                     continue
 
                 ## Instantiating a codemutator object
-                codemutator = CodeMutator(func_name=func_name)
-
-                codemutator.mutated_dict = {
-                    'question': question,
-                    'choices': choices,
-                    'qn_desc': qn_desc,
-                    'examples': examples,
-                    'choices': choices,
-                    'check_function': check_function
-                }
-
+                codemutator = CodeMutator(
+                    func_name=func_name, 
+                    mutated_dict= {
+                        'question': question,
+                        'full_sol' : full_sol,
+                        'choices': choices,
+                        'qn_desc': qn_desc,
+                        'examples': examples,
+                        'check_function': check_function
+                    }
+                )
+                
                 codemutator.correct_ans_idx = ANS_DICT[answer]
                 
                 ## Handling Task Mutation (If any)
                 try: 
-                    for mutation_type in mutation_dict.values():
+                    for mutation in mutations:
                         codemutator.mutate_for_mcq_inconsistency(
-                            mutation_type=mutation_type,
+                            mutation_type=mutation,
                             task_set="CodeMMLU",
                             correct_answer_idx=ANS_DICT[answer],
                             task_type = task_type,
@@ -183,7 +170,7 @@ class LLMMCQInconsistencyTester(CodeGenerationTester):
 
                 ## Formating of examples into doc test format for one shot/few shot prompts
                 if example_helper is not None:
-                    prompt_examples = example_helper(examples)
+                    prompt_examples = example_helper(codemutator.mutated_dict['examples'])
                 
                 ## Dictionary containing input variables to format the prompt with
                 input_variables = {

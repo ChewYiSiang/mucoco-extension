@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class MongoDBHelper:
-    def __init__(self, max_retries: int = 5):
+    def __init__(self, max_retries: int = 2):
         mongodb_uri = os.getenv("mongoDB_uri")
         retries = 0
         while retries < max_retries:

@@ -24,13 +24,13 @@ class MCQInconsistencyPromptTemplate(PromptTemplate):
                         
             # Code Snippet
             {task}
-            
-            # Choices
-            {choices}
                                  
             # Example
             {example}
             
+            # Choices
+            {choices}
+                                 
             # Your answer:
             
         """)
@@ -43,13 +43,13 @@ class MCQInconsistencyPromptTemplate(PromptTemplate):
                         
             # Code Snippet
             {task}
-            
-            # Choices
-            {choices}
                                  
             # Examples
             {example}
             
+            # Choices
+            {choices}
+                                 
             # Your answer:
             
         """)
