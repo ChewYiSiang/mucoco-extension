@@ -91,6 +91,9 @@ class Mistral(CodeLLM):
     def process_ans(text: str) -> str:
         return CodeLLM.process_ans(text)
 
+class MistralGPU(CodeLLM):
+    def __init__(self, model_name):
+        super().__init__(model_name)
 
 if __name__ == "__main__":
     load_dotenv()
