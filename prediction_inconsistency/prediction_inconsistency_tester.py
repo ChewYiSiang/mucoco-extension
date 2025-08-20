@@ -20,12 +20,11 @@ def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: mul
             return True
         except ImportError:
             return False
-    
     if is_colab():
         llm = TransformersCodeLLM(model_name="mistralai/Mistral-7B-Instruct-v0.2")
     else:
         llm = Mistral()
-    llm = Mistral()
+        
     ans = llm.invoke(input_variables=input_variables, prompt_template=prompt_template)
     queue.put(ans)
 
