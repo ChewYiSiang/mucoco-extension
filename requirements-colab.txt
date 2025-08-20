@@ -1,0 +1,53 @@
+# Core ML/AI packages - use compatible versions
+torch==2.7.1
+torchvision==0.22.1
+transformers>=4.40.0
+accelerate>=1.0.0
+datasets>=3.0.0
+tokenizers>=0.20.0
+safetensors>=0.4.0
+
+# LangChain ecosystem
+langchain>=0.3.20
+langchain-community>=0.3.20
+langchain-core>=0.3.60
+langchain-huggingface>=0.3.0
+langchain-mistralai>=0.2.10
+langchain-text-splitters>=0.3.8
+langsmith>=0.3.40
+
+# API clients
+openai>=1.80.0
+mistralai>=1.8.0
+huggingface-hub>=0.34.0
+
+# Data processing - use versions compatible with Colab
+pandas>=2.2.0,<2.3.0  # Stick to Colab's pandas version
+numpy>=2.0.0,<2.3.0   # Compatible with existing packages
+pyarrow>=14.0.0,<20.0.0  # Compatible with cudf
+
+# Database and storage
+pymongo>=4.13.0
+SQLAlchemy>=2.0.0
+
+# Async and HTTP
+aiohttp>=3.12.0
+httpx>=0.28.0
+httpx-sse>=0.4.0
+requests>=2.32.0
+
+# Validation and serialization
+pydantic>=2.11.0
+pydantic-settings>=2.9.0
+marshmallow>=3.26.0
+dataclasses-json>=0.6.7
+
+# Progress and utilities
+alive-progress>=3.2.0
+about-time>=4.2.0
+tqdm>=4.67.0
+treelib>=1.8.0
+python-dotenv>=1.1.0
+
+# Development and debugging
+import-ipynb>=0.2

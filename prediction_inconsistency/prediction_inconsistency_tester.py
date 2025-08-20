@@ -9,10 +9,22 @@ import ast
 import copy
 import multiprocessing
 from llm_models.code_llms import Mistral
+from llm_models.gpu_code_llms import TransformersCodeLLM
 from code_mutation.mutation_relations import check_for_mutation_conflicts
 
 
 def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: multiprocessing.Queue):
+    def is_colab():
+        try:
+            import google.colab
+            return True
+        except ImportError:
+            return False
+    
+    if is_colab():
+        llm = TransformersCodeLLM(model_name="mistralai/Mistral-7B-Instruct-v0.2")
+    else:
+        llm = Mistral()
     llm = Mistral()
     ans = llm.invoke(input_variables=input_variables, prompt_template=prompt_template)
     queue.put(ans)

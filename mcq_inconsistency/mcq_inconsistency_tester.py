@@ -9,8 +9,7 @@ import ast
 import multiprocessing
 from llm_models.code_llms import Mistral
 from code_mutation.mutation_relations import check_for_mutation_conflicts
-
-
+from llm_models.gpu_code_llms import TransformersCodeLLM
 
 ANS_DICT = {
     "A" : 0,
@@ -20,7 +19,18 @@ ANS_DICT = {
 }
 
 def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: multiprocessing.Queue):
-    llm = Mistral()
+    def is_colab():
+        try:
+            import google.colab
+            return True
+        except ImportError:
+            return False
+        
+    if is_colab():
+        llm = TransformersCodeLLM(model_name="mistralai/Mistral-7B-Instruct-v0.2")
+    else:
+        llm = Mistral()
+        
     ans = llm.invoke(input_variables=input_variables, prompt_template=prompt_template)
     queue.put(ans)
 
