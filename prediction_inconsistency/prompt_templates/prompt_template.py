@@ -1,7 +1,7 @@
 import textwrap 
 from code_generation.prompt_templates.prompt_template import PromptTemplate
 
-class CodeInconsistencyPromptTemplate(PromptTemplate):
+class PredictionInconsistencyPromptTemplate(PromptTemplate):
     class OutputPrediction:
         def zero_shot_prompt() -> str:
             prompt = textwrap.dedent("""
@@ -66,8 +66,8 @@ class CodeInconsistencyPromptTemplate(PromptTemplate):
     class InputPrediction:
         def zero_shot_prompt() -> str:
             prompt = textwrap.dedent("""
-                # You are given a code snippet, a description of the code and the output. Return the expected input in your answer that would produce this output. 
-                # Your answer should only contain the expected input with no additional information and explanations. 
+                # You are given a code snippet, a description of the code, an output and an input. Your task is to determine if running the program with the input could result in the output. 
+                # Your answer should either be "True" or "False". Do not provide any additional information and explanations. 
                                      
                 {qn_desc}
                             
@@ -76,48 +76,57 @@ class CodeInconsistencyPromptTemplate(PromptTemplate):
                 
                 # Output
                 {test_output}
+                                     
+                # Input
+                {test_input}
                                     
-                # Expected Input: 
+                # Your Answer
             """)
             return prompt
         
         def one_shot_prompt() -> str:
             prompt = textwrap.dedent("""
-                # You are given a code snippet, a description of the code, an example and the output. You may use the example to determine the expected input. Return the expected input in your answer that would produce this output. 
-                # Your answer should only contain the expected input with no additional information and explanations. 
-                                    
+                # You are given a code snippet, a description of the code, an output and an input. Your task is to determine if running the program with the input could result in the output. You are also provided an example, which you may use to answer the question.
+                # Your answer should either be "True" or "False". Do not provide any additional information and explanations. 
+                                                   
                 {qn_desc}
                             
                 # Code Snippet
                 {full_sol}
+                                     
+                # Examples
+                {example}
                 
                 # Output
                 {test_output}
+                                     
+                # Input
+                {test_input}
                                     
-                # Example
-                {example}
-                                    
-                # Expected Output: 
+                # Your Answer
             """)
             return prompt
         
         def few_shot_prompt() -> str:
             prompt = textwrap.dedent("""
-                # You are given a code snippet, a description of the code, a few examples and the output. You may use the examples to determine the expected input. Return the expected input in your answer that would produce this output. 
-                # Your answer should only contain the expected input with no additional information and explanations. 
+                # You are given a code snippet, a description of the code, an output and an input. Your task is to determine if running the program with the input could result in the output. You are also provided with some examples, which you may use to answer the question.
+                # Your answer should either be "True" or "False". Do not provide any additional information and explanations. 
                                     
                 {qn_desc}
                             
                 # Code Snippet
                 {full_sol}
-                
-                # Output
-                {test_output}
-                                    
+                                     
                 # Examples
                 {example}
+                                     
+                # Output
+                {test_output}
+                                     
+                # Input
+                {test_input}
                                     
-                # Expected Output: 
+                # Your Answer
             """)
             return prompt
 

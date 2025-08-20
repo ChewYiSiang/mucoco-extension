@@ -1,5 +1,4 @@
-from code_inconsistency.utility.humaneval_helper import CodeInconsistencyHumanEvalHelper
-from code_inconsistency.utility.cruxeval_helper import CodeInconsistencyCruxEvalHelper
+from prediction_inconsistency.utility.humaneval_helper import PredictionInconsistencyHumanEvalHelper
 from code_generation.code_generation_tester import CodeGenerationTester
 from code_mutation.mutation_functions import CodeMutator
 from utility.constants import PromptTypes, Tasks, InputPrediction, MCQInconsistency, CruxEval, HumanEval
@@ -11,8 +10,6 @@ import copy
 import multiprocessing
 from llm_models.code_llms import Mistral
 from code_mutation.mutation_relations import check_for_mutation_conflicts
-
-
 
 
 def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: multiprocessing.Queue):
@@ -114,7 +111,7 @@ class LLMConsistencyTester(CodeGenerationTester):
                     "task_id": task_id,
                     "prompt": None,
                     "model_output": None,
-                    "expected_output": test_outputs if task_type == Tasks.OutputPrediction.NAME else test_inputs,
+                    "expected_output": test_outputs if task_type == Tasks.OutputPrediction.NAME else "True",
                     "failure_type": None
                 }
 
@@ -133,7 +130,7 @@ class LLMConsistencyTester(CodeGenerationTester):
                 output_args = ast.literal_eval(output_args) if output_metadata != str.__name__ else output_args
                                         
                 ## Sanity Check to ensure that the complete solution passes the check functions
-                check_soln_validity = CodeInconsistencyHumanEvalHelper.check_input_output(
+                check_soln_validity = PredictionInconsistencyHumanEvalHelper.check_input_output(
                     full_sol= full_sol,
                     test_input= copy.deepcopy(input_args),
                     expected_output= output_args,
@@ -161,7 +158,7 @@ class LLMConsistencyTester(CodeGenerationTester):
                 ## Handling Task Mutation (If any)
                 try: 
                     for mutation_type in mutations:
-                        codemutator.mutate_for_code_inconsistency_test(
+                        codemutator.mutate_for_prediction_inconsistency_test(
                             mutation_type = mutation_type,
                             input_args= copy.deepcopy(input_args),
                             output_args= output_args,
@@ -222,7 +219,7 @@ class LLMConsistencyTester(CodeGenerationTester):
                     if task_type == Tasks.OutputPrediction.NAME:
                         assert ans == output_args
                     elif task_type == Tasks.InputPrediction.NAME:
-                        assert ans == input_args
+                        assert ans == True
                 except Exception as e:
                     if isinstance(e, AssertionError):
                         pass

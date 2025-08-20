@@ -1,4 +1,4 @@
-# from code_inconsistency.prompt_templates.prompt_template import CodeInconsistencyPromptTemplate
+from prediction_inconsistency.prompt_templates.prompt_template import PredictionInconsistencyPromptTemplate
 from typing import Callable
 
 class PromptTypes:
@@ -59,7 +59,11 @@ class Tasks:
     class MCQInconsistency:
         NAME = "mcq_inconsistency"
         BENCHMARKS = (Benchmarks.CodeMMLU.NAME,)
-        MUTATIONS = [getattr(LexicalMutations, m) for m in dir(LexicalMutations) if not m.startswith("__")] + [getattr(LogicalMutations, m) for m in dir(LogicalMutations) if not m.startswith("__")]
+        MUTATIONS = [
+            getattr(SyntacticMutations, m) for m in dir(SyntacticMutations) if not m.startswith("__")] + [
+            getattr(LogicalMutations, m) for m in dir(LogicalMutations) if not m.startswith("__")] + [
+            getattr(LexicalMutations, m) for m in dir(LexicalMutations) if not m.startswith("__")
+            ]
         
     class OutputPrediction:
         NAME = "output_prediction"
@@ -79,30 +83,30 @@ MCQInconsistency = Tasks.MCQInconsistency
 OutputPrediction = Tasks.OutputPrediction
 InputPrediction = Tasks.InputPrediction
 
-# class PromptConfig:
-#     def __init__(self, prompt_helper: Callable, example_helper: Callable | None):
-#         self.prompt_helper = prompt_helper
-#         self.example_helper = example_helper
+class PromptConfig:
+    def __init__(self, prompt_helper: Callable, example_helper: Callable | None):
+        self.prompt_helper = prompt_helper
+        self.example_helper = example_helper
 
-# CODE_INCONSISTENCY_PROMPT_CONFIG ={
-#     "general" : {
-#         "zero_shot" : PromptConfig(
-#             prompt_helper = CodeInconsistencyPromptTemplate.OutputPrediction.zero_shot_prompt, 
-#             example_helper = None
-#             ),
-#         "one_shot": PromptConfig(
-#             prompt_helper = CodeInconsistencyPromptTemplate.OutputPrediction.one_shot_prompt, 
-#             example_helper = CodeInconsistencyPromptTemplate.structure_one_shot_example
-#             ),
-#         "few_shot" : PromptConfig(
-#             prompt_helper = CodeInconsistencyPromptTemplate.OutputPrediction.few_shot_prompt,
-#             example_helper = CodeInconsistencyPromptTemplate.structure_few_shot_examples
-#         ),
-#     },
-#     "llama": {
-#         "zero_shot" : {},
-#         "one_shot": {},
-#         "few_shot" : {},
+CODE_INCONSISTENCY_PROMPT_CONFIG ={
+    "general" : {
+        "zero_shot" : PromptConfig(
+            prompt_helper = PredictionInconsistencyPromptTemplate.OutputPrediction.zero_shot_prompt, 
+            example_helper = None
+            ),
+        "one_shot": PromptConfig(
+            prompt_helper = PredictionInconsistencyPromptTemplate.OutputPrediction.one_shot_prompt, 
+            example_helper = PredictionInconsistencyPromptTemplate.structure_one_shot_example
+            ),
+        "few_shot" : PromptConfig(
+            prompt_helper = PredictionInconsistencyPromptTemplate.OutputPrediction.few_shot_prompt,
+            example_helper = PredictionInconsistencyPromptTemplate.structure_few_shot_examples
+        ),
+    },
+    "llama": {
+        "zero_shot" : {},
+        "one_shot": {},
+        "few_shot" : {},
         
-#     }
-# }
+    }
+}

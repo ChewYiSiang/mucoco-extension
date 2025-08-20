@@ -117,7 +117,7 @@ class LLMMCQInconsistencyTester(CodeGenerationTester):
                     continue
                 
                 # obtaining the correct choice
-                correct_choice = choices[ANS_DICT[answer]]
+                correct_choice = choices[answer]
 
                 # formulating the full solution with the correct choice
                 full_sol = question + "\n" + correct_choice
@@ -148,8 +148,8 @@ class LLMMCQInconsistencyTester(CodeGenerationTester):
                         'check_function': check_function
                     }
                 )
-                
-                codemutator.correct_ans_idx = ANS_DICT[answer]
+
+                codemutator.correct_ans_idx = answer
                 
                 ## Handling Task Mutation (If any)
                 try: 
@@ -157,7 +157,7 @@ class LLMMCQInconsistencyTester(CodeGenerationTester):
                         codemutator.mutate_for_mcq_inconsistency(
                             mutation_type=mutation,
                             task_set="CodeMMLU",
-                            correct_answer_idx=ANS_DICT[answer],
+                            answer=answer,
                             task_type = task_type,
                         )
 

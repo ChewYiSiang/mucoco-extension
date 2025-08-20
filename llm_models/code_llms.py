@@ -2,10 +2,11 @@ import os
 from huggingface_hub import login
 from langchain_mistralai.chat_models import ChatMistralAI
 from huggingface_hub import InferenceClient
-from typing import List, Dict
+from typing import Dict
 from langchain.prompts import ChatPromptTemplate
 import re
 from abc import ABC, abstractmethod
+from dotenv import load_dotenv
 
 class CodeLLM(ABC):
     @abstractmethod
@@ -71,19 +72,20 @@ class Mistral(CodeLLM):
                 model=self.model_name,
                 temperature= 0
             )
+
         except KeyError as e:
             print("Mistral API key could not be obtained from .env")
             return None        
                         
     def invoke(self, input_variables: Dict[str, str], prompt_template: str) -> str | None:
-            prompt = ChatPromptTemplate.from_messages(
-                [
-                    ("human", prompt_template)
-                ]
-            )
-            chain = prompt | self.model
-            ans = chain.invoke(input = input_variables)
-            return ans.content
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("human", prompt_template)
+            ]
+        )
+        chain = prompt | self.model
+        ans = chain.invoke(input = input_variables)
+        return ans.content
     
     @staticmethod
     def process_ans(text: str) -> str:
@@ -91,5 +93,7 @@ class Mistral(CodeLLM):
 
 
 if __name__ == "__main__":
+    load_dotenv()
     llm = Mistral()
-    print(llm.model_name)
+    text, tokens, avg_lp = llm.invoke({"x": "hi"}, "Say hello to {x} in one short sentence.")
+    print(text)

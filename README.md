@@ -18,8 +18,8 @@ This project investigates LLM consistency by testing how well code generation mo
 │   ├── prompt_templates/             # Prompt engineering templates
 │   ├── test_notebooks/              # Jupyter notebooks for experiments
 │   └── utility/                     # Helper functions for HumanEval dataset
-├── code_inconsistency/       # Consistency testing framework  
-│   ├── code_inconsistency_tester.py # Main testing class for consistency
+├── prediction_inconsistency/       # Consistency testing framework  
+│   ├── prediction_inconsistency_tester.py # Main testing class for consistency
 │   ├── prompt_templates/             # Prompt templates for consistency tests
 │   ├── test_notebooks/              # Analysis notebooks
 │   └── utility/                     # HumanEval helper functions
@@ -111,7 +111,7 @@ tester.run_code_generation_test(
 #### Consistency Testing
 
 ```python
-from code_inconsistency.code_inconsistency_tester import LLMConsistencyTester
+from prediction_inconsistency.prediction_inconsistency_tester import LLMConsistencyTester
 
 # Initialize consistency tester
 consistency_tester = LLMConsistencyTester()

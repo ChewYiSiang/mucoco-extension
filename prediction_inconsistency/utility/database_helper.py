@@ -1,7 +1,7 @@
 import inspect
 from typing import List
 
-class CodeInconsistencyHelper:
+class PredictionInconsistencyHelper:
     @staticmethod
     def check_input_output(
         full_sol: str, 

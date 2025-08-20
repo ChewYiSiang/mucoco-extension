@@ -6,11 +6,8 @@ import random
 import string
 import re
 from code_mutation.ast_mutation import ASTNodeHelper
-from code_inconsistency.utility.humaneval_helper import CodeInconsistencyHumanEvalHelper
-from code_inconsistency.utility.cruxeval_helper import CodeInconsistencyCruxEvalHelper
+from prediction_inconsistency.utility.humaneval_helper import PredictionInconsistencyHumanEvalHelper
 from mcq_inconsistency.utility.codemmlu_helper import CodeGenerationCodeMMLUHelper
-from code_generation.utility.bigcodebench_helper import CodeGenerationBigCodeBenchHelper
-from code_generation.utility.humaneval_helper import CodeGenerationHumanEvalHelper
 
 from utility.constants import Mutations, CodeMMLU, MCQInconsistency, CodeGeneration, Benchmarks
 
@@ -220,7 +217,7 @@ class CodeMutator:
             self,
             mutation_type:str,
             task_set: str,
-            correct_answer_idx: int,
+            answer: str,
             task_type: str = CodeMMLU.Tasks.CODE_COMPLETION
         ):
 
@@ -249,7 +246,6 @@ class CodeMutator:
         try: 
             tree = ast.parse(self.mutated_dict['full_sol'])
         except IndentationError:
-            contains_pass = True
             self.mutated_dict['full_sol'] += "\n" + "    pass"
             tree = ast.parse(self.mutated_dict['full_sol'])
 
@@ -275,12 +271,12 @@ class CodeMutator:
 
             mutated_sol = self.mutated_dict['full_sol']
 
-            if contains_pass == True:
-                temp = mutated_sol.splitlines()
-                mutated_sol = '\n'.join(temp[:-1])
-            # print(self.mutated_dict['choices'])
-            # print(mutated_sol)
-            mutated_full_sol = mutated_sol + "\n" + self.mutated_dict['choices'][correct_answer_idx]
+            func_def, prog_lines = CodeGenerationCodeMMLUHelper.split_mutated_solution(mutated_sol, self.func_name)
+
+            self.mutated_dict['question'] = func_def
+            self.mutated_dict['choices'][answer] = prog_lines
+
+            mutated_full_sol = func_def + "\n" + prog_lines
 
         except Exception as e:
             raise MutationFailedError(e)
@@ -288,10 +284,11 @@ class CodeMutator:
         ## Checking if the mutated solution is identical to the original solution
         try:
             if mutation_type in (FOR2ENUMERATE, FOR2WHILE, DEMORGAN):
-                assert CodeMutator.standardize_program(mutated_sol) != CodeMutator.standardize_program(mutated_full_sol)
+                assert CodeMutator.standardize_program(mutated_sol) != CodeMutator.standardize_program(sanitised_question)
         except:
             raise IdenticalMutationError(mutation_type=mutation_type)
         
+        ## Checking that the mutated solution still passes the check function 
         try:
             multiprocessing_queue = multiprocessing.Queue()
 
@@ -315,6 +312,8 @@ class CodeMutator:
         except Exception as e:
             print(f"DEBUG: Mutation check failed with error: {type(e).__name__}: {e}")
             raise MutationCheckFailedError(e)
+        
+
     
     def handle_mutation(
             self, 
@@ -334,10 +333,10 @@ class CodeMutator:
         try:
             if mutation_type in syntactic_mutations:
                 if mutation_type == FOR2WHILE:
-                    if task_set in (HUMANEVAL, ):
-                        input_metadata = CodeInconsistencyHumanEvalHelper.extract_input_metadata(examples = examples, qn = full_sol)
+                    if task_set in (HUMANEVAL, CODEMMLU):
+                        input_metadata = PredictionInconsistencyHumanEvalHelper.extract_input_metadata(examples = examples, qn = full_sol)
                     elif task_set in (CRUXEVAL, ):
-                        input_metadata = CodeInconsistencyCruxEvalHelper.extract_input_metadata(prog=full_sol, test_input=input_args)
+                        input_metadata = PredictionInconsistencyHumanEvalHelper.extract_input_metadata(prog=full_sol, test_input=input_args)
                     variable_metadata = CodeMutator.obtain_variable_types(tree, input_metadata)
                     merged_metadata = input_metadata | variable_metadata
                     mutated_sol = CodeMutator.mutate_for_to_while(tree = tree, input_metadata=merged_metadata)  
@@ -395,7 +394,7 @@ class CodeMutator:
             raise e
         
     
-    def mutate_for_code_inconsistency_test(
+    def mutate_for_prediction_inconsistency_test(
         self,
         mutation_type: str, 
         input_args: Any,
@@ -523,11 +522,9 @@ class CodeMutator:
         question = self.mutated_dict.get('question', None)
         qn_desc = self.mutated_dict.get('qn_desc', None)
         examples = self.mutated_dict.get('examples', None)
-        choices = self.mutated_dict.get('choices', None)
+        choices : Dict[str, str] = self.mutated_dict.get('choices', None)
         check_function = self.mutated_dict.get('check_function', None)
         full_sol = self.mutated_dict.get('full_sol', None)
-
-        
 
         if mutation_type.strip().lower() == SEQUENTIAL_MUTATION:
             # for loop iterating through each function name
@@ -595,12 +592,12 @@ class CodeMutator:
 
         # Applying mutation onto question choices, for MCQInconsistency mutation cases
         if choices is not None:
-            for idx, choice in enumerate(choices):
-                new_choice = choice  # work on a copy
+            for key, choice in choices.items():
+                new_choice = choice
                 for name in rename_map:
-                    pattern = r'\b{}\b'.format(re.escape(name))  # safe + whole word
+                    pattern = r'\b{}\b'.format(re.escape(name))  
                     new_choice = re.sub(pattern, rename_map[name], new_choice)
-                choices[idx] = new_choice
+                choices[key] = new_choice
             self.mutated_dict['choices'] = choices
         
         if check_function is not None:

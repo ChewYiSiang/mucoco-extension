@@ -1,9 +1,9 @@
 import ast
 from typing import Tuple, List, Dict, Any
 from code_generation.utility.humaneval_helper import CodeGenerationHumanEvalHelper
-from code_inconsistency.utility.database_helper import CodeInconsistencyHelper
+from prediction_inconsistency.utility.database_helper import PredictionInconsistencyHelper
 
-class CodeInconsistencyHumanEvalHelper(CodeGenerationHumanEvalHelper, CodeInconsistencyHelper):
+class PredictionInconsistencyHumanEvalHelper(CodeGenerationHumanEvalHelper, PredictionInconsistencyHelper):
     def extract_input_metadata(
             examples: Dict[str, str], 
             qn: str
