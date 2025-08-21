@@ -61,6 +61,8 @@ class CodeGenerationTester(Tester):
     
 
     def log_into_csv(output_file_path:str, input_data = Dict[str, Any]) -> None:
+        os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
+
         file_exists = os.path.isfile(output_file_path)
 
         # Append the row with or without headers
