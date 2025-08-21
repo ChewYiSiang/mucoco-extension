@@ -28,7 +28,8 @@ class TransformersCodeLLM(CodeLLM):
         )
 
         # decode text
-        generated_text = self.tokenizer.decode(outputs.sequences[0], skip_special_tokens=True)
+        gen_tokens = outputs.sequences[0][inputs["input_ids"].shape[-1]:]
+        answer_text = self.tokenizer.decode(gen_tokens, skip_special_tokens=True)
 
         # compute token-level logprobs
         scores = outputs.scores  # list[tensor], each tensor is [batch, vocab_size]
@@ -42,6 +43,6 @@ class TransformersCodeLLM(CodeLLM):
         geom_mean_prob = math.exp(sum(logprobs) / len(logprobs)) if logprobs else 0.0
 
         return {
-            "ans": generated_text,
+            "ans": answer_text,
             "geom_mean_prob": geom_mean_prob
         }

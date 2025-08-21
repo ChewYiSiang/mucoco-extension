@@ -207,6 +207,8 @@ class LLMConsistencyTester(CodeGenerationTester):
                     )
 
                     ans = ans_dict['ans']
+                    ans = LLMConsistencyTester.process_llm_ans(ans)
+
                     prob = ans_dict['geom_mean_prob']
 
                     log_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
