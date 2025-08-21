@@ -47,10 +47,10 @@ class LLMConsistencyTester(CodeGenerationTester):
             mutations: List[str] = [],
             example_helper: Callable[[Dict[str, str]], str] = None,
             task_type: str = Tasks.OutputPrediction.NAME,
-            model_name: str = "mistralai/Mistral-7B-Instruct-v0.1"
+            model_name: str = "mistralai/Mistral-7B-Instruct-v0.2"
     ) -> int:
         # integer storing the number of seconds that the llm should return its answer by
-        llm_timeout = 5
+        llm_timeout = 20
 
         if prompt_type != 'zero_shot' and example_helper is None:
             raise ValueError("A non zero-shot prompt is used, yet no example helper function was given. Add the approrpriate example_helper for this prompt template.")
@@ -75,7 +75,7 @@ class LLMConsistencyTester(CodeGenerationTester):
         task_pass_count = 0             # int variable tracking the number of tasks that have passed
         failed_validity = []            # list storing the test case id that have failed the check functions
         using_GPU = True if (torch.cuda.is_available() or is_colab()) else False
-        
+
         if using_GPU:
             llm = TransformersCodeLLM(model_name=model_name)
         
