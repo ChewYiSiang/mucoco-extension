@@ -7,6 +7,7 @@ from tqdm import tqdm
 import time
 import ast
 import copy
+import torch
 import multiprocessing
 from llm_models.code_llms import Mistral
 from llm_models.gpu_code_llms import TransformersCodeLLM
@@ -14,20 +15,16 @@ from code_mutation.mutation_relations import check_for_mutation_conflicts
 
 
 def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: multiprocessing.Queue):
-    def is_colab():
-        try:
-            import google.colab
-            return True
-        except ImportError:
-            return False
-    if is_colab():
-        llm = TransformersCodeLLM(model_name="mistralai/Mistral-7B-Instruct-v0.2")
-    else:
-        llm = Mistral()
-        
+    llm = Mistral()
     ans = llm.invoke(input_variables=input_variables, prompt_template=prompt_template)
     queue.put(ans)
 
+def is_colab():
+    try:
+        import google.colab
+        return True
+    except ImportError:
+        return False
 
 class LLMConsistencyTester(CodeGenerationTester):
     def __init__(self, qn_database: str = "HumanEval_Input_Output"):
@@ -50,6 +47,7 @@ class LLMConsistencyTester(CodeGenerationTester):
             mutations: List[str] = [],
             example_helper: Callable[[Dict[str, str]], str] = None,
             task_type: str = Tasks.OutputPrediction.NAME,
+            model_name: str = "mistralai/Mistral-7B-Instruct-v0.1"
     ) -> int:
         # integer storing the number of seconds that the llm should return its answer by
         llm_timeout = 5
@@ -63,7 +61,6 @@ class LLMConsistencyTester(CodeGenerationTester):
             continue_from = 0
         
         num_tests = min(self.question_database.count_documents({}) - continue_from, num_tests)         # ensuring that the number of iterations is lower than max number of documents in the db
-
         
         if not check_for_mutation_conflicts(mutations=mutations):
             raise ValueError("An invalid combination of mutations were used.")
@@ -77,7 +74,11 @@ class LLMConsistencyTester(CodeGenerationTester):
 
         task_pass_count = 0             # int variable tracking the number of tasks that have passed
         failed_validity = []            # list storing the test case id that have failed the check functions
-
+        using_GPU = True if (torch.cuda.is_available() or is_colab()) else False
+        
+        if using_GPU:
+            llm = TransformersCodeLLM(model_name=model_name)
+        
         try:                            # try statement to catch any potential errors arising from using free APIs. These APIs are usually unstable and can crash at any time. 
             for idx in tqdm(range(continue_from, continue_from + num_tests)):
                 task_id = f"{task_set}TF{idx}"
@@ -197,34 +198,48 @@ class LLMConsistencyTester(CodeGenerationTester):
                     'example': prompt_examples if example_helper is not None else None,
                 }
                 log_entry["prompt"] = prompt_template.format(**input_variables)            # storing formatted prompt into database entry
-
+                
                 ## Running the llm on the input variables and the prompt template
-                multiprocessing_queue = multiprocessing.Queue()
+                if using_GPU:
+                    ans_dict = llm.invoke(
+                        input_variables=input_variables,
+                        prompt_template=prompt_template
+                    )
 
-                verify_answer_process = multiprocessing.Process(
-                    target= invoke_llm,
-                    kwargs={
-                        "input_variables": input_variables,
-                        "prompt_template": prompt_template,
-                        "queue": multiprocessing_queue
-                    }
-                )
+                    ans = ans_dict['ans']
+                    prob = ans_dict['geom_mean_prob']
 
-                verify_answer_process.start()
-                verify_answer_process.join(timeout=llm_timeout)
+                    log_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
+                    log_entry['geometric'] = prob
 
-                if verify_answer_process.is_alive():
-                    verify_answer_process.kill()
-                    verify_answer_process.join()
-                    log_entry['failure_type'] = f"{type(RuntimeError()).__name__} > LLM could not answer the task within {llm_timeout} seconds."
-                    LLMConsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
-                    continue
+                else: 
+                    multiprocessing_queue = multiprocessing.Queue()
 
-                if not multiprocessing_queue.empty():
-                    ans = multiprocessing_queue.get()
+                    verify_answer_process = multiprocessing.Process(
+                        target= invoke_llm,
+                        kwargs={
+                            "input_variables": input_variables,
+                            "prompt_template": prompt_template,
+                            "queue": multiprocessing_queue
+                        }
+                    )
 
-                ans = LLMConsistencyTester.process_llm_ans(ans)
-                log_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
+                    verify_answer_process.start()
+                    verify_answer_process.join(timeout=llm_timeout)
+
+                    if verify_answer_process.is_alive():
+                        verify_answer_process.kill()
+                        verify_answer_process.join()
+                        log_entry['failure_type'] = f"{type(RuntimeError()).__name__} > LLM could not answer the task within {llm_timeout} seconds."
+                        LLMConsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
+                        continue
+
+                    if not multiprocessing_queue.empty():
+                        ans = multiprocessing_queue.get()
+
+                    ans = LLMConsistencyTester.process_llm_ans(ans)
+                
+                    log_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
                 ## Running the formatted prompt into the LLM
                 try:
                     if task_type == Tasks.OutputPrediction.NAME:
