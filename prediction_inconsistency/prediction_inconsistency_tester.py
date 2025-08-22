@@ -27,8 +27,8 @@ def is_colab():
         return False
 
 class LLMConsistencyTester(CodeGenerationTester):
-    def __init__(self, qn_database: str = "HumanEval_Input_Output"):
-        super().__init__(qn_database=qn_database)
+    def __init__(self, qn_database: str = "HumanEval_Input_Output", n: int = 2):
+        super().__init__(qn_database=qn_database, n=n)
 
     def process_llm_ans(prog: str) -> Any:
         try:
@@ -59,7 +59,7 @@ class LLMConsistencyTester(CodeGenerationTester):
             continue_from = int(continue_from_task.split('TF')[-1])
         else:
             continue_from = 0
-        
+
         num_tests = min(self.question_database.count_documents({}) - continue_from, num_tests)         # ensuring that the number of iterations is lower than max number of documents in the db
         
         if not check_for_mutation_conflicts(mutations=mutations):
@@ -75,9 +75,12 @@ class LLMConsistencyTester(CodeGenerationTester):
         task_pass_count = 0             # int variable tracking the number of tasks that have passed
         failed_validity = []            # list storing the test case id that have failed the check functions
         using_GPU = True if (torch.cuda.is_available() or is_colab()) else False
-
         if using_GPU:
-            llm = TransformersCodeLLM(model_name=model_name)
+            answers = self.question_database.find({}, { "_id": 0, "output": 1 })
+            filtered_ans = [ans['output']['args'] for ans in answers]
+
+            llm = TransformersCodeLLM(model_name=model_name, answers= filtered_ans)
+            print(llm.max_new_token)
         
         try:                            # try statement to catch any potential errors arising from using free APIs. These APIs are usually unstable and can crash at any time. 
             for idx in tqdm(range(continue_from, continue_from + num_tests)):
@@ -263,8 +266,6 @@ class LLMConsistencyTester(CodeGenerationTester):
                 
                 ## Logging data into the csv file
                 LLMConsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
-
-
 
             return task_pass_count
         

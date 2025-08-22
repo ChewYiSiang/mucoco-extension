@@ -52,8 +52,8 @@ class Tester:
         
 
 class CodeGenerationTester(Tester):
-    def __init__(self, qn_database: str = "HumanEval_Open_Ended"):
-        db = MongoDBHelper()
+    def __init__(self, qn_database: str = "HumanEval_Open_Ended", n: int = 2):
+        db = MongoDBHelper(n)
         if db.check_database_connectivity():
             print("MongoDB connected")
         base_qns_db = db.client["Base_Questions_DB"]

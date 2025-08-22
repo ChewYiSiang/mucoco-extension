@@ -1,17 +1,26 @@
 from llm_models.code_llms import CodeLLM
-from typing import Dict, List
+from typing import Dict, List, Any
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import math
 
 class TransformersCodeLLM(CodeLLM):
-    def __init__(self, model_name: str) -> None:
+    def __init__(self, model_name: str, answers: List[Any] = None) -> None:
         super().__init__(model_name)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForCausalLM.from_pretrained(model_name, local_files_only = True)
         if torch.cuda.is_available():
             self.model = self.model.to("cuda")
+        
+        if answers is not None:
+            self.obtain_max_new_tokens(answers = answers)
+        else:
+            self.max_new_token = 512
+
         print("LLM model successfully deployed.")
+
+    def obtain_max_new_tokens(self, answers: List[Any]):
+        self.max_new_token = max(len(self.tokenizer.encode(ans)) for ans in answers)
 
     def invoke(self, input_variables: Dict[str, str], prompt_template: str) -> Dict[str, str | float]:
         # format the prompt
@@ -21,10 +30,11 @@ class TransformersCodeLLM(CodeLLM):
         # generate with log probabilities
         outputs = self.model.generate(
             **inputs,
-            max_new_tokens=512,
+            max_new_tokens=self.max_new_token,
             do_sample=False,
             return_dict_in_generate=True,
-            output_scores=True
+            output_scores=True,
+            pad_token_id=self.tokenizer.eos_token_id
         )
 
         # decode text
