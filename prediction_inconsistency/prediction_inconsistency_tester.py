@@ -242,6 +242,9 @@ class LLMConsistencyTester(CodeGenerationTester):
                     ans = LLMConsistencyTester.process_llm_ans(ans)
                 
                     log_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
+                    
+                    time.sleep(2)
+
                 ## Running the formatted prompt into the LLM
                 try:
                     if task_type == Tasks.OutputPrediction.NAME:
@@ -261,7 +264,6 @@ class LLMConsistencyTester(CodeGenerationTester):
                 ## Logging data into the csv file
                 LLMConsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
 
-                time.sleep(2)
 
 
             return task_pass_count
