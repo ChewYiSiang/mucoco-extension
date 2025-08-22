@@ -10,9 +10,12 @@ import time
 import pandas as pd
 import multiprocessing
 import shutil
+import regex as re
 from utility.constants import PromptTypes, CodeGeneration
 from code_mutation.mutation_relations import check_for_mutation_conflicts
 from llm_models.code_llms import Mistral
+import torch
+from llm_models.gpu_code_llms import TransformersCodeLLM
 
 
 def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: multiprocessing.Queue):
@@ -59,7 +62,15 @@ class CodeGenerationTester(Tester):
         base_qns_db = db.client["Base_Questions_DB"]
         self.question_database = base_qns_db[qn_database]
     
-
+    @staticmethod
+    def is_colab():
+        try:
+            import google.colab
+            return True
+        except ImportError:
+            return False
+        
+    @staticmethod
     def log_into_csv(output_file_path:str, input_data = Dict[str, Any]) -> None:
         os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
 
@@ -69,7 +80,15 @@ class CodeGenerationTester(Tester):
         with open(output_file_path, mode='a', newline='', encoding='utf-8') as csvfile:
             df = pd.DataFrame([input_data])
             df.to_csv(csvfile, header=not file_exists, index=False)
-            
+    
+
+    @staticmethod
+    def process_llm_ans(text: str) -> str:
+        match = re.search(r"```(?:python)?\n(.*?)```", text, re.DOTALL)
+        if match:
+            return match.group(1).strip()
+        else:
+            raise ValueError("No code block found")
             
     def run_code_generation_test(
             self, 
@@ -81,6 +100,8 @@ class CodeGenerationTester(Tester):
             continue_from_task: str = None,
             mutations: List[str] = None,
             example_helper: Callable[[Dict[str, str]], str] = None, 
+            model_name: str = "mistralai/Mistral-7B-Instruct-v0.2"
+
         ) -> int:
         
         if prompt_type != PromptTypes.ZERO_SHOT and example_helper is None:
@@ -107,6 +128,11 @@ class CodeGenerationTester(Tester):
         task_pass_count = 0             # int variable tracking the number of tasks that have passed
         failed_validity = []            # list storing the test case id that have failed the check functions
         timeout = 8                     # int variable indicating the number of seconds the LLM generated program should complete running by
+        using_GPU = True if (torch.cuda.is_available() or CodeGenerationTester.is_colab()) else False
+
+        if using_GPU:
+            llm = TransformersCodeLLM(model_name=model_name)
+
 
         try:                            # try statement to catch any potential errors arising from using free APIs. These APIs are usually unstable and can crash at any time. 
             for idx in tqdm(range(continue_from, continue_from + num_tests)):
@@ -211,28 +237,42 @@ class CodeGenerationTester(Tester):
 
                 log_data_entry["prompt"] = prompt_template.format(**input_variables)
 
-                try: 
-                    # Running the llm on the input variables and the prompt template
-                    ans = self.execute_llm(input_variables = input_variables, prompt_template = prompt_template)
+                if using_GPU:
+                    ans_dict = llm.invoke(
+                        input_variables=input_variables,
+                        prompt_template=prompt_template
+                    )
 
-                    # Processing of the llm answer. Some llm answers are in Python code blocks, which needs to be processed as it will fail exec()
-                    processed_output = Mistral.process_ans(ans)
-                except ValueError:                          # Raised when the llm answer did not have a python code block
+                    ans = ans_dict['ans']
+                    ans = CodeGenerationTester.process_llm_ans(ans)
+
+                    prob = ans_dict['geom_mean_prob']
+
+                    log_data_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
+                    log_data_entry['geometric'] = prob
+                else:
+
                     try: 
-                        exec(ans)                           # Attempting to run the llm answer directly. In some cases, the returned answer can be directly run as no code block was returned
-                        processed_output = ans              
-                    except Exception as e:                  # Else, if the answer is not in a valid code block and cannot be run directly, it is a faulty answer and is stored accordingly.
-                        print(f"Could not process LLM answer: {e}")
-                        log_data_entry["model_output"] = ans
-                        log_data_entry["failure_type"] = ("could_not_parse_LLM_answer", type(e))
+                        # Running the llm on the input variables and the prompt template
+                        ans = self.execute_llm(input_variables = input_variables, prompt_template = prompt_template)
+
+                        # Processing of the llm answer. Some llm answers are in Python code blocks, which needs to be processed as it will fail exec()
+                        ans = CodeGenerationTester.process_llm_ans(ans)
+                    except ValueError:                          # Raised when the llm answer did not have a python code block
+                        try: 
+                            exec(ans)                           # Attempting to run the llm answer directly. In some cases, the returned answer can be directly run as no code block was returned
+                        except Exception as e:                  # Else, if the answer is not in a valid code block and cannot be run directly, it is a faulty answer and is stored accordingly.
+                            print(f"Could not process LLM answer: {e}")
+                            log_data_entry["model_output"] = ans
+                            log_data_entry["failure_type"] = ("could_not_parse_LLM_answer", type(e))
+                            CodeGenerationTester.log_into_csv(output_file_path = output_file_path, input_data = log_data_entry)
+                            continue
+                    except LLMExecutionRuntimeError:
+                        log_data_entry["failure_type"] = (LLMExecutionRuntimeError.__name__, type(e))
                         CodeGenerationTester.log_into_csv(output_file_path = output_file_path, input_data = log_data_entry)
                         continue
-                except LLMExecutionRuntimeError:
-                    log_data_entry["failure_type"] = (LLMExecutionRuntimeError.__name__, type(e))
-                    CodeGenerationTester.log_into_csv(output_file_path = output_file_path, input_data = log_data_entry)
-                    continue
 
-                log_data_entry['model_output'] = processed_output       # storing the answer in input_data dict
+                log_data_entry['model_output'] = ans       # storing the answer in input_data dict
                 ## LLM Answer Test Execution    
         
                 try:
@@ -242,7 +282,7 @@ class CodeGenerationTester(Tester):
 
                     verify_answer_process = multiprocessing.Process(        
                         target= test_set_helper.run_llm_answer,
-                        args = (processed_output, test_function, func_name, multiprocessing_queue)
+                        args = (ans, test_function, func_name, multiprocessing_queue)
                         )
 
                     verify_answer_process.start()
@@ -285,7 +325,7 @@ class CodeGenerationTester(Tester):
                 # logging completed run into csv 
                 CodeGenerationTester.log_into_csv(output_file_path = output_file_path, input_data = log_data_entry)
 
-                time.sleep(5)
+                time.sleep(2)
                 
             return task_pass_count
         except Exception as e:

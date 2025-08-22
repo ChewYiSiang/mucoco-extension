@@ -20,7 +20,11 @@ class TransformersCodeLLM(CodeLLM):
         print("LLM model successfully deployed.")
 
     def obtain_max_new_tokens(self, answers: List[Any]):
-        self.max_new_token = max(len(self.tokenizer.encode(ans)) for ans in answers)
+        longest_token = max(len(self.tokenizer.encode(ans)) for ans in answers)
+        x =2
+        while x < longest_token:
+            x *= 2
+        self.max_new_token = x
 
     def invoke(self, input_variables: Dict[str, str], prompt_template: str) -> Dict[str, str | float]:
         # format the prompt

@@ -19,14 +19,6 @@ class CodeLLM(ABC):
     def invoke(self, input_variables: Dict[str, str], prompt_template: str) -> str | None:
         pass
 
-    @staticmethod
-    def process_ans(text: str) -> str:
-        match = re.search(r"```(?:python)?\n(.*?)```", text, re.DOTALL)
-        if match:
-            return match.group(1).strip()
-        else:
-            raise ValueError("No code block found")
-
 class MetaLlama(CodeLLM):
     def __init__(self, model_name: str = "meta-llama/Llama-3.2-3B-Instruct") -> ChatMistralAI | None:
         hf_token = os.environ["llama_hf_API"]
@@ -59,9 +51,6 @@ class MetaLlama(CodeLLM):
         )        
         return ans.choices[0].message.content
 
-    @staticmethod
-    def process_ans(text: str) -> str:
-        return CodeLLM.process_ans(text)
 
 class Mistral(CodeLLM):
     def __init__(self, model_name: str = "mistral-small-latest") -> ChatMistralAI | None:
@@ -86,10 +75,7 @@ class Mistral(CodeLLM):
         chain = prompt | self.model
         ans = chain.invoke(input = input_variables)
         return ans.content
-    
-    @staticmethod
-    def process_ans(text: str) -> str:
-        return CodeLLM.process_ans(text)
+
 
 class MistralGPU(CodeLLM):
     def __init__(self, model_name):
