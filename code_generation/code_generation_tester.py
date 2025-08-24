@@ -133,7 +133,6 @@ class CodeGenerationTester(Tester):
         if using_GPU:
             llm = TransformersCodeLLM(model_name=model_name)
 
-
         try:                            # try statement to catch any potential errors arising from using free APIs. These APIs are usually unstable and can crash at any time. 
             for idx in tqdm(range(continue_from, continue_from + num_tests)):
                 task_id = f"{task_set}o{idx}"

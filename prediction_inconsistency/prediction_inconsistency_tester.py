@@ -69,7 +69,7 @@ class LLMConsistencyTester(CodeGenerationTester):
         failed_validity = []            # list storing the test case id that have failed the check functions
         using_GPU = True if (torch.cuda.is_available() or LLMConsistencyTester.is_colab()) else False
         if using_GPU:
-            if task_type == Tasks.OutputPrediction.Name:
+            if task_type == Tasks.OutputPrediction.NAME:
                 answers = self.question_database.find({}, { "_id": 0, "output": 1 })
                 filtered_ans = [ans['output']['args'] for ans in answers]
             else:

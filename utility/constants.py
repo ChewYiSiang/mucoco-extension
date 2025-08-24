@@ -77,7 +77,6 @@ class Tasks:
     class InputPrediction(OutputPrediction):
         NAME = "input_prediction"
 
-        
 CodeGeneration = Tasks.CodeGeneration
 MCQInconsistency = Tasks.MCQInconsistency
 OutputPrediction = Tasks.OutputPrediction
