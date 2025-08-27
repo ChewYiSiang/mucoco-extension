@@ -12,6 +12,7 @@ import multiprocessing
 from llm_models.code_llms import Mistral
 from llm_models.gpu_code_llms import TransformersCodeLLM
 from code_mutation.mutation_relations import check_for_mutation_conflicts
+from prediction_inconsistency.prompt_templates.prompt_template import PredictionInconsistencyPromptTemplate
 
 
 def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: multiprocessing.Queue):
@@ -20,8 +21,8 @@ def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: mul
     queue.put(ans)
 
 class LLMConsistencyTester(CodeGenerationTester):
-    def __init__(self, qn_database: str = "HumanEval_Input_Output", n: int = 2):
-        super().__init__(qn_database=qn_database, n=n)
+    def __init__(self, qn_database: str = "HumanEval_Input_Output", base_db : str = "Base_Questions_DB", n: int = 2):
+        super().__init__(qn_database=qn_database, base_db= base_db, n=n)
 
     def process_llm_ans(prog: str) -> Any:
         try:
@@ -45,9 +46,13 @@ class LLMConsistencyTester(CodeGenerationTester):
         # integer storing the number of seconds that the llm should return its answer by
         llm_timeout = 20
 
-        if prompt_type != 'zero_shot' and example_helper is None:
-            raise ValueError("A non zero-shot prompt is used, yet no example helper function was given. Add the approrpriate example_helper for this prompt template.")
-        
+        if prompt_type == PromptTypes.ONE_SHOT:
+            example_helper= PredictionInconsistencyPromptTemplate.structure_one_shot_example
+        elif prompt_type == PromptTypes.FEW_SHOT:
+            example_helper = PredictionInconsistencyPromptTemplate.structure_few_shot_examples
+        else:
+            example_helper = None
+
         if continue_from_task is not None:
             continue_from = int(continue_from_task.split('TF')[-1])
         else:
@@ -76,7 +81,6 @@ class LLMConsistencyTester(CodeGenerationTester):
                 filtered_ans = ["True"]
 
             llm = TransformersCodeLLM(model_name=model_name, answers= filtered_ans)
-            print(llm.max_new_token)
         
         try:                            # try statement to catch any potential errors arising from using free APIs. These APIs are usually unstable and can crash at any time. 
             for idx in tqdm(range(continue_from, continue_from + num_tests)):
@@ -208,10 +212,7 @@ class LLMConsistencyTester(CodeGenerationTester):
                     ans = ans_dict['ans']
                     ans = LLMConsistencyTester.process_llm_ans(ans)
 
-                    prob = ans_dict['geom_mean_prob']
-
                     log_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
-                    log_entry['geometric'] = prob
 
                 else: 
                     ans = self.execute_llm(

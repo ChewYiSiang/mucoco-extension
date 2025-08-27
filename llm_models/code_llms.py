@@ -19,45 +19,12 @@ class CodeLLM(ABC):
     def invoke(self, input_variables: Dict[str, str], prompt_template: str) -> str | None:
         pass
 
-class MetaLlama(CodeLLM):
-    def __init__(self, model_name: str = "meta-llama/Llama-3.2-3B-Instruct") -> ChatMistralAI | None:
-        hf_token = os.environ["llama_hf_API"]
-        login(token=hf_token)
-
-        self.model_name = model_name
-
-        try:
-            self.model = InferenceClient(
-                provider='hyperbolic',
-                api_key=hf_token,
-            )
-        except KeyError as e:
-            if type(e) == KeyError:
-                print("Llama API key could not be obtained from .env")
-            else:
-                print("Could not deploy llama model due to the following error: {e}".format(e = e))
-    
-    def invoke(self, input_variables: Dict[str, str], prompt_template: str) -> str | None:
-        prompt = prompt_template.format(**input_variables)
-        ans = self.model.chat.completions.create(
-            model = self.model_name,
-            messages = [
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            temperature= 0
-        )        
-        return ans.choices[0].message.content
-
-
 class Mistral(CodeLLM):
     def __init__(self, model_name: str = "mistral-small-latest") -> ChatMistralAI | None:
         self.model_name = model_name
         try:
             self.model = ChatMistralAI(
-                api_key = os.environ["mistral_API"],
+                api_key = os.environ["MISTRAL_API_KEY"],
                 model=self.model_name,
                 temperature= 0
             )

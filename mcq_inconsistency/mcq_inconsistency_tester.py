@@ -10,6 +10,7 @@ import multiprocessing
 from llm_models.code_llms import Mistral
 from code_mutation.mutation_relations import check_for_mutation_conflicts
 from llm_models.gpu_code_llms import TransformersCodeLLM
+from mcq_inconsistency.prompt_templates.prompt_template import MCQInconsistencyPromptTemplate
 import torch
 
 ANS_DICT = {
@@ -51,9 +52,13 @@ class LLMMCQInconsistencyTester(CodeGenerationTester):
         # integer storing the number of seconds that the llm should return its answer by
         llm_timeout = 20
                 
-        if prompt_type != 'zero_shot' and example_helper is None:
-            raise ValueError("A non zero-shot prompt is used, yet no example helper function was given. Add the approrpriate example_helper for this prompt template.")
-        
+        if prompt_type == PromptTypes.ONE_SHOT:
+            example_helper= MCQInconsistencyPromptTemplate.structure_one_shot_example
+        elif prompt_type == PromptTypes.FEW_SHOT:
+            example_helper = MCQInconsistencyPromptTemplate.structure_few_shot_examples
+        else:
+            example_helper = None
+
         if continue_from_task is not None:
             continue_from = int(continue_from_task.split('MCQ')[-1])
         else:

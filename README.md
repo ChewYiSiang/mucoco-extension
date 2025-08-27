@@ -75,7 +75,7 @@ pip install pymongo langchain langchain-mistralai huggingface_hub pandas tqdm py
 
 1. Create a `.env` file with your API keys and database URI:
 ```bash
-mongoDB_uri=your_mongodb_connection_string
+MONGODB_URI=your_mongodb_connection_string
 MISTRAL_API_KEY=your_mistral_api_key
 HUGGINGFACE_API_TOKEN=your_huggingface_token
 ```

@@ -1,8 +1,8 @@
 from database import MongoDBHelper
-from llm_models.code_llms import CodeLLM
 from code_generation.utility.humaneval_helper import CodeGenerationHumanEvalHelper
 from code_generation.utility.bigcodebench_helper import CodeGenerationBigCodeBenchHelper
 from code_mutation.mutation_functions import CodeMutator
+from code_generation.prompt_templates.prompt_template import OpenEndedPromptTemplate
 from typing import Callable, Dict, Any, List
 from tqdm import tqdm
 import os
@@ -55,11 +55,11 @@ class Tester:
         
 
 class CodeGenerationTester(Tester):
-    def __init__(self, qn_database: str = "HumanEval_Open_Ended", n: int = 2):
+    def __init__(self, qn_database: str = "HumanEval_Open_Ended", base_db : str = "Base_Questions_DB", n: int = 2):
         db = MongoDBHelper(n)
         if db.check_database_connectivity():
             print("MongoDB connected")
-        base_qns_db = db.client["Base_Questions_DB"]
+        base_qns_db = db.client[base_db]
         self.question_database = base_qns_db[qn_database]
     
     @staticmethod
@@ -92,20 +92,22 @@ class CodeGenerationTester(Tester):
             
     def run_code_generation_test(
             self, 
-            prompt_helper: Callable[[], str], 
+            prompt_helper: Callable, 
             num_tests: int, 
             output_file_path: str,
             prompt_type: str,
             task_set: str,
             continue_from_task: str = None,
             mutations: List[str] = None,
-            example_helper: Callable[[Dict[str, str]], str] = None, 
             model_name: str = "mistralai/Mistral-7B-Instruct-v0.2"
-
         ) -> int:
         
-        if prompt_type != PromptTypes.ZERO_SHOT and example_helper is None:
-            raise ValueError("A non zero-shot prompt is used, yet no example helper function was given. Add the approrpriate example_helper for this prompt template.")
+        if prompt_type == PromptTypes.ONE_SHOT:
+            example_helper= OpenEndedPromptTemplate.structure_one_shot_example
+        elif prompt_type == PromptTypes.FEW_SHOT:
+            example_helper = OpenEndedPromptTemplate.structure_few_shot_examples
+        else:
+            example_helper = None
         
         if continue_from_task is not None:
             continue_from = int(continue_from_task.split('o')[-1])
@@ -243,12 +245,12 @@ class CodeGenerationTester(Tester):
                     )
 
                     ans = ans_dict['ans']
-                    ans = CodeGenerationTester.process_llm_ans(ans)
-
-                    prob = ans_dict['geom_mean_prob']
+                    try:
+                        ans = CodeGenerationTester.process_llm_ans(ans)
+                    except ValueError:
+                        pass
 
                     log_data_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
-                    log_data_entry['geometric'] = prob
                 else:
 
                     try: 

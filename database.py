@@ -8,11 +8,11 @@ load_dotenv()
 
 class MongoDBHelper:
     def __init__(self, max_retries: int = 2):
-        mongodb_uri = os.getenv("mongoDB_uri")
+        MONGODB_URI = os.getenv("MONGODB_URI")
         retries = 0
         while retries < max_retries:
             try:
-                self.client = MongoClient(mongodb_uri, server_api=ServerApi('1'))
+                self.client = MongoClient(MONGODB_URI, server_api=ServerApi('1'))
                 self.check_database_connectivity()
                 break
             except (ConfigurationError, ServerSelectionTimeoutError) as e:

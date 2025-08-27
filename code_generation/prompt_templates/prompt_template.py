@@ -1,9 +1,21 @@
-from abc import ABC
+from abc import ABC, abstractmethod
 import textwrap 
-from typing import List, Dict
+from typing import List, Dict, Callable
 import random
+from utility.constants import PromptTypes
 
 class PromptTemplate(ABC):
+    def return_appropriate_prompt(self, prompt_type: str) -> Callable:
+        valid_prompt_types = [getattr(PromptTypes, prompt) for prompt in dir(PromptTypes)]
+        if prompt_type not in valid_prompt_types:
+            raise ValueError(f"An invalid prompt type was used. Only {valid_prompt_types} are valid.")
+        
+        if prompt_type == PromptTypes.ZERO_SHOT:
+            return self.zero_shot_prompt
+        elif prompt_type == PromptTypes.ONE_SHOT:
+            return self.one_shot_prompt
+        elif prompt_type == PromptTypes.FEW_SHOT:
+            return self.few_shot_prompt
 
     @staticmethod
     def structure_few_shot_examples(test_cases: Dict[str, str]) -> str:
@@ -39,6 +51,18 @@ class PromptTemplate(ABC):
             return ">>> " + random_example + "\n" + test_cases[random_example]
         else:
             return test_cases
+        
+    @abstractmethod
+    def zero_shot_prompt(self) -> str:
+        pass
+
+    @abstractmethod
+    def one_shot_prompt(self) -> str:
+        pass
+
+    @abstractmethod
+    def few_shot_prompt(self) -> str:
+        pass
 
 class MCQPromptTemplate(PromptTemplate):
     def zero_shot_prompt() -> str:
@@ -62,17 +86,37 @@ class MCQPromptTemplate(PromptTemplate):
         return prompt
 
 class OpenEndedPromptTemplate(PromptTemplate):
-    def zero_shot_prompt() -> str:
+    def zero_shot_prompt(self) -> str:
         prompt = textwrap.dedent("""
-            # Complete the given code snippet using the description below. Only complete the code function and do not add any other details. If a helper function is given, return it together with your answer without modifying it.
-            {task}
-                                 
-            # Your Answer: 
-            {code}
+        # Complete the given code snippet using the description below. 
+        # Complete the function body and do not add any explanations or extra text. 
+        # Return all code snippet in your answer. 
+        # Preserve indentation.
+
+
+        ### Example:
+
+        # Task
+        Return a function that returns the largest integer in a list.
+
+        # Code Snippet
+        def find_max(nums):
+
+        # Your Answer
+        def find_max(nums):
+            return max(nums)
+
+        ### Task:
+        {task}
+
+        ### Code Snippet:
+        {code}
+
+        # Your Answer:
         """)
         return prompt
     
-    def one_shot_prompt() -> str:
+    def one_shot_prompt(self) -> str:
         prompt = textwrap.dedent("""
             # Complete the code for the following function given it's description. Only complete the code function and do not add any other details. You may use the given example to write your code. Return your answer as a complete function, including any provided code. 
             {task}
@@ -86,7 +130,7 @@ class OpenEndedPromptTemplate(PromptTemplate):
         """)
         return prompt
     
-    def few_shot_prompt() -> str:
+    def few_shot_prompt(self) -> str:
         prompt = textwrap.dedent("""
             # Complete the code for the following function given it's description. You may use the given examples to write your code. Return your answer as a complete function.
             {task}
