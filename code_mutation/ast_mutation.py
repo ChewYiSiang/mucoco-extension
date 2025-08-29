@@ -42,6 +42,27 @@ class ASTNodeHelper:
         def visit_For(self, node):
             self.for_loop_exisits = True
 
+    class BooleanOperationDetectorNodeVisitor(ast.NodeVisitor):
+        """
+        This NodeVisitor class is used to determine if valid boolean operations exist in the input program
+        that can be mutated with DeMorgan's laws.
+
+        Detects:
+            - BoolOp nodes (and/or operations)
+            - UnaryOp with Not applied to boolean operations
+        """
+
+        def __init__(self):
+            self.boolean_operation_exists = False
+
+        def visit_BoolOp(self, node):
+            if isinstance(node.op, (ast.And, ast.Or)):
+                self.boolean_operation_exists = True
+
+        def visit_UnaryOp(self, node):
+            if isinstance(node.op, ast.Not) and isinstance(node.operand, ast.BoolOp):
+                self.boolean_operation_exists = True
+
 
     class VariableTypeMapperNodeVisitor(ast.NodeVisitor):
         """

@@ -261,6 +261,14 @@ class CodeMutator:
             if for_loop_exists == False:
                 raise NoForLoopError()
 
+        ## Checking for any valid boolean operations before DeMorgan mutations
+        if mutation_type == DEMORGAN:
+            boolean_operation_checker = ASTNodeHelper.BooleanOperationDetectorNodeVisitor()
+            boolean_operation_checker.visit(tree)
+            boolean_operation_exists = boolean_operation_checker.boolean_operation_exists
+            if boolean_operation_exists == False:
+                raise NoBooleanOperationError()
+
         ## Handling mutations
         try: 
             self.handle_mutation(
@@ -422,6 +430,14 @@ class CodeMutator:
 
             if for_loop_exists == False:
                 raise NoForLoopError()
+        
+        # Pre condition check that checks if valid boolean operations exist
+        if mutation_type == DEMORGAN:
+            boolean_operation_checker = ASTNodeHelper.BooleanOperationDetectorNodeVisitor()
+            boolean_operation_checker.visit(tree)
+            boolean_operation_exists = boolean_operation_checker.boolean_operation_exists
+            if boolean_operation_exists == False:
+                raise NoBooleanOperationError()
         
         try:
             self.handle_mutation(
@@ -798,6 +814,11 @@ class NoForLoopError(Exception):
     """Raised when no for loops are in the given program"""
     def __init__(self, *args):
         super().__init__("No valid for loops in the given program")
+
+class NoBooleanOperationError(Exception):
+    """Raised when no boolean operations are in the given program"""
+    def __init__(self):
+        super().__init__("No valid boolean operations in the given program")
 
 if __name__ == "__main__":
     print(f"Invalid mutation type was used. The available mutation types are {', '.join(CodeMutator.mutation_types)}")
