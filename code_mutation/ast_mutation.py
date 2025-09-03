@@ -63,6 +63,54 @@ class ASTNodeHelper:
             if isinstance(node.op, ast.Not) and isinstance(node.operand, ast.BoolOp):
                 self.boolean_operation_exists = True
 
+    class BooleanLiteralDetectorNodeVisitor(ast.NodeVisitor):
+        """
+        This NodeVisitor class is used to determine if boolean literals exist in the input program
+        that can be transformed (True/False values).
+
+        Detects:
+            - Constant nodes with boolean values (True, False)
+        """
+
+        def __init__(self):
+            self.boolean_literal_exists = False
+
+        def visit_Constant(self, node):
+            if isinstance(node.value, bool):
+                self.boolean_literal_exists = True
+
+    class CommutativeOperationDetectorNodeVisitor(ast.NodeVisitor):
+        """
+        This NodeVisitor class is used to determine if commutative operations exist in the input program
+        that can be reordered (addition, multiplication).
+
+        Detects:
+            - BinOp nodes with commutative operations (Add, Mult)
+        """
+
+        def __init__(self):
+            self.commutative_operation_exists = False
+
+        def visit_BinOp(self, node):
+            if isinstance(node.op, (ast.Add, ast.Mult)):
+                self.commutative_operation_exists = True
+
+    class ConstantUnfoldDetectorNodeVisitor(ast.NodeVisitor):
+        """
+        This NodeVisitor class is used to determine if integer constants exist in the input program
+        that can be unfolded into expressions (e.g., 10 -> 5 + 5).
+
+        Detects:
+            - Constant nodes with integer values greater than 1
+        """
+
+        def __init__(self):
+            self.constant_unfold_exists = False
+
+        def visit_Constant(self, node):
+            if isinstance(node.value, int) and node.value > 1:
+                self.constant_unfold_exists = True
+
 
     class VariableTypeMapperNodeVisitor(ast.NodeVisitor):
         """
