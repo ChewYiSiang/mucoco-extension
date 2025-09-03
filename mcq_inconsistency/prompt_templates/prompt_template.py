@@ -2,7 +2,7 @@ import textwrap
 from code_generation.prompt_templates.prompt_template import PromptTemplate
 
 class MCQInconsistencyPromptTemplate(PromptTemplate):
-    def zero_shot_prompt() -> str:
+    def zero_shot_prompt(self) -> str:
         prompt = textwrap.dedent("""
             # You are given a code snippet, a description of the code and several choices. Choose the correct option that completes the code snippet based on the question description. Your answer should only be the alphabet corresponding to the option i.e.: A, B, C, etc. Do not give any additional details.
             {qn_desc}
@@ -17,7 +17,7 @@ class MCQInconsistencyPromptTemplate(PromptTemplate):
         """)
         return prompt
         
-    def one_shot_prompt() -> str:
+    def one_shot_prompt(self) -> str:
         prompt = textwrap.dedent("""
             # You are given a code snippet, a description of the code, an example and several choices. Choose the correct option that completes the code snippet based on the question description. Your answer should only be the alphabet corresponding to the option i.e.: A, B, C etc. You may use the example to help answer the question. Do not give any additional details.
             {qn_desc}
@@ -36,7 +36,7 @@ class MCQInconsistencyPromptTemplate(PromptTemplate):
         """)
         return prompt
     
-    def few_shot_prompt() -> str:
+    def few_shot_prompt(self) -> str:
         prompt = textwrap.dedent("""
             # You are given a code snippet, a description of the code, some examples and several choices. Choose the correct option that completes the code snippet based on the question description. Your answer should only be the alphabet corresponding to the option i.e.: A, B, C etc. You may use the examples to help answer the question. Do not give any additional details.
             {qn_desc}

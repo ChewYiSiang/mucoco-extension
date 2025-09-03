@@ -1,4 +1,3 @@
-from abc import abstractmethod
 from langchain_community.chat_models import ChatOpenAI
 from llm_models.code_llms import CodeLLM
 from typing import Dict
@@ -6,24 +5,29 @@ from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
 import string
 import ast
-
-
+from dotenv import load_dotenv
 import os
+from openai import OpenAI
+
+load_dotenv()
 
 class CodeReasoningLLM(CodeLLM):
-    @abstractmethod
-    def __init__(self, model_name: str) -> None:
+    pass
+
+class OpenAIReasoningLLM(CodeReasoningLLM):
+    def __init__(self, model_name = 'gpt-5'):
         self.model_name = model_name
-        pass
+        self.client = OpenAI()
 
-    @abstractmethod
     def invoke(self, input_variables: Dict[str, str], prompt_template: str) -> str | None:
-        pass
-
-    @abstractmethod
-    def process_ans(text: str) -> str:
-        pass
-
+        prompt = prompt_template.format(**input_variables)
+        result = self.client.responses.create(
+            model=self.model_name,
+            input=prompt,
+            reasoning={ "effort": "low" },
+            text={ "verbosity": "low" },
+        )
+        return result.output_text
 
 
 class DeepSeekLLM(CodeLLM):
