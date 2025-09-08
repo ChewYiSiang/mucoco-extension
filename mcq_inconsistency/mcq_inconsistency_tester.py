@@ -19,11 +19,6 @@ ANS_DICT = {
     "D" : 3,
 }
 
-def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: multiprocessing.Queue, llm_model : Callable):
-    llm = llm_model()
-    ans = llm.invoke(input_variables=input_variables, prompt_template=prompt_template)
-    queue.put(ans)
-
 class LLMMCQInconsistencyTester(CodeGenerationTester):
     def __init__(self, qn_database: str = "HumanEval_Input_Output"):
         super().__init__(qn_database=qn_database)
@@ -94,6 +89,7 @@ class LLMMCQInconsistencyTester(CodeGenerationTester):
             for model in all_local_models:
                 if model['name'] == model_name:
                     llm = model['model_class']
+                    print(llm)
                     break
             else:
                 valid_model_names = [model['name'] for model in all_local_models]
@@ -222,10 +218,13 @@ class LLMMCQInconsistencyTester(CodeGenerationTester):
                         ans = self.execute_llm(
                             input_variables=input_variables,
                             prompt_template=prompt_template,
-                            llm_model=llm
+                            llm_model=llm,
+                            model_name = model_name
                         )
                     except Exception as e:
                         log_entry['failure_type'] = f"{type(e).__name__} > {e}"
+                        LLMMCQInconsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
+                        continue
 
 
                     ans = LLMMCQInconsistencyTester.process_llm_ans(ans)

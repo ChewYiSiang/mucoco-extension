@@ -18,14 +18,17 @@ import torch
 from llm_models.gpu_code_llms import TransformersCodeLLM
 
 
-def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: multiprocessing.Queue, llm_model : Callable):
-    llm = llm_model()
+def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: multiprocessing.Queue, llm_model : Callable, model_name : str):
+    llm = llm_model(model_name)
     ans = llm.invoke(input_variables=input_variables, prompt_template=prompt_template)
     queue.put(ans)
 
 class Tester:
-    def execute_llm(self, input_variables: Dict[str, str], prompt_template: str, llm_model : Callable = Mistral):
+    def execute_llm(self, model_name: str, input_variables: Dict[str, str], prompt_template: str, llm_model : Callable = Mistral, ):
         llm_timeout = 30
+
+        if model_name == ReasoningModels.GPT4O_REASONING["name"]:
+            model_name = NonReasoningModels.GPT4O['name']
             
         ## Running the llm on the input variables and the prompt template
         multiprocessing_queue = multiprocessing.Queue()
@@ -35,7 +38,8 @@ class Tester:
                 "input_variables": input_variables,
                 "prompt_template": prompt_template,
                 "queue": multiprocessing_queue,
-                "llm_model": llm_model 
+                "llm_model": llm_model,
+                "model_name": model_name,
             }
         )
 
@@ -267,7 +271,7 @@ class CodeGenerationTester(Tester):
 
                     try: 
                         # Running the llm on the input variables and the prompt template
-                        ans = self.execute_llm(input_variables = input_variables, prompt_template = prompt_template, llm_model = llm)
+                        ans = self.execute_llm(input_variables = input_variables, prompt_template = prompt_template, llm_model = llm, model_name=model_name)
 
                         # Processing of the llm answer. Some llm answers are in Python code blocks, which needs to be processed as it will fail exec()
                         ans = CodeGenerationTester.process_llm_ans(ans)

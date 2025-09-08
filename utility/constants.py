@@ -1,5 +1,5 @@
 from typing import Callable
-from llm_models.code_llms import Mistral
+from llm_models.code_llms import Mistral, OpenAILLM
 from llm_models.code_reasoning_llms import OpenAIReasoningLLM
 
 class PromptTypes:
@@ -86,10 +86,11 @@ InputPrediction = Tasks.InputPrediction
 class LLMModels:
     class ReasoningModels:
         GPT5 = {"name": "gpt-5", "model_class": OpenAIReasoningLLM}
-        GPT4O = {"name": "gpt-4o", "model_class": OpenAIReasoningLLM}
+        GPT4O_REASONING = {"name": "gpt-4o-reasoning", "model_class": OpenAIReasoningLLM}
     
     class NonReasoningModels:
         MISTRAL_SMALL_LATEST = {"name": "mistral-small-latest", "model_class": Mistral}
+        GPT4O = {"name": "gpt-4o", "model_class": OpenAILLM}
 
 
 ReasoningModels = LLMModels.ReasoningModels

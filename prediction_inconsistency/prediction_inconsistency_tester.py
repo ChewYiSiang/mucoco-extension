@@ -229,7 +229,8 @@ class LLMConsistencyTester(CodeGenerationTester):
                         ans = self.execute_llm(
                             input_variables=input_variables,
                             prompt_template=prompt_template,
-                            llm_model=llm
+                            llm_model=llm,
+                            model_name=model_name
                         )
                     except Exception as e:
                         log_entry['failure_type'] = f"{type(e).__name__} > {e}"
