@@ -6,15 +6,20 @@ import re
 import multiprocessing as mp
 from contextlib import suppress
 import numpy as np
+from utility.custom_decorators import multiprocessing_method
+import contextlib
+import io
 
+f = io.StringIO()
+
+@multiprocessing_method
 def run_tests(
         tests: str, 
         solution: str, 
         test_names: List[str], 
         error_queue: mp.Queue, 
-        func_name:str
     ) -> None:
-    with suppress(Exception):
+    with suppress(Exception) and contextlib.redirect_stdout(f):
         namespace = {}
 
         exec(tests, namespace)
@@ -27,10 +32,25 @@ def run_tests(
                 except Exception as e:
                     error_queue.put(e)
                     raise e
+                
+@multiprocessing_method
+def run_program(
+        program: str,
+        func_name: str,
+        func_input: Any,
+        mp_queue: mp.Queue,
+    ) -> None:
+    with contextlib.redirect_stdout(f):
+        namespace = {}
+        exec(program, namespace)
+        try:
+            mp_queue.put(namespace[func_name](func_input))
+        except Exception:
+            return
 
 
 class TurbulenceBenchmarkHelper:
-    def __init__(self, q_no: int, seed: int):
+    def __init__(self, q_no: int = None, seed: int = None):
         self.q_no = q_no
         self.seed = seed
 
@@ -120,11 +140,10 @@ class TurbulenceBenchmarkHelper:
         res = re.sub(pattern = regex_pattern, repl = func_name, string = tests_template)
         return res
 
-    def run_tests(
+    def run_test_suite(
         self,
         tests: str,
         solution: str,
-        func_name: str,
     ):
         
         class TestNameExtractor(ast.NodeVisitor):
@@ -148,7 +167,6 @@ class TurbulenceBenchmarkHelper:
                 "solution": solution,
                 "test_names": test_names,
                 "error_queue": error_queue,
-                "func_name": func_name
             }
         )
 
@@ -172,7 +190,7 @@ class TurbulenceBenchmarkHelper:
         if isinstance(db_entry, np.matrix):
             list_entry = db_entry.tolist()
             return {
-                "data": list_entry,
+                "data": str(list_entry),
                 "metadata": np.matrix.__name__
             }
         else:
@@ -181,5 +199,62 @@ class TurbulenceBenchmarkHelper:
                 "metadata": type(db_entry).__name__
             }
 
+    def convert_data_to_metadata(
+            self,
+            data: str,
+            metadata: str,
+        ) -> np.matrix | Any:
+        if metadata == np.matrix.__name__:
+            return np.matrix(list(data))
+        elif type(data).__name__ != metadata:
+            return ast.literal_eval(data)
+        else:
+            return data
+        
 
+    def verify_LLM_answer(
+            self,
+            canonical_sol: str,
+            func_input: Any,
+            func_name: str,
+            llm_ans: str
+        ):
+        model_ans = self._obtain_program_answer(program=canonical_sol, func_input=func_input, func_name=func_name)
+        llm_ans = self._obtain_program_answer(program=llm_ans, func_input=func_input, func_name=func_name)
+
+        assert model_ans == llm_ans
+        
+    def _obtain_program_answer(
+            self,
+            program: str,
+            func_input: Any,
+            func_name: str
+        ) -> Any | None:
+
+        prog_timeout = 30
+
+        mp_queue = mp.Queue()
+
+        answer_process = mp.Process(
+            target = run_program,
+            kwargs= {
+                'program': program,
+                'func_name': func_name,
+                'func_input': func_input,
+                'mp_queue': mp_queue
+            }
+        )
+
+        answer_process.start()
+        answer_process.join(timeout=prog_timeout)
+
+        if answer_process.is_alive():
+            answer_process.kill()
+            raise(RuntimeError())
+        
+        if not mp_queue.empty():
+            return mp_queue.get()
+        else:
+            return None
+        
     

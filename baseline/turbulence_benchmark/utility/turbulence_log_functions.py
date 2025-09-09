@@ -1,10 +1,12 @@
 import pandas as pd
-from typing import Tuple, Any, List
-import ast
+from typing import Tuple, Any, List, Dict
 
-class DataLogHelper:
+class TurbulenceLogHelper:
+    def __init__(self):
+        self.total_task = 52
+
     @staticmethod
-    def compare_code_generation_dataframe_results(log1: pd.DataFrame, log2: pd.DataFrame) -> Tuple[int, int]:
+    def obtain_mucoco_code_inconsistency_score(log1: pd.DataFrame, log2: pd.DataFrame) -> Tuple[int, int]:
         """
         This function is used to compare between two pd dataframes containing the logs of two comparable code generation runs and returns any inconsistencies found between the two logs.
         
@@ -38,16 +40,11 @@ class DataLogHelper:
         Potential Improvements:
             This function assumes that the logs contain information from all runs, hence both the dataframe logs MUST have the same number of entries. 
                 - Should there be any changes in the future where only selected runs are logged, this function may need to be modifid accordingly. 
-    
         """
 
         ## Checking that the log1 column names are equal to log2 column names
         if not log1.columns.equals(log2.columns):
             raise ValueError("CSV column headers do not match.")
-        
-        ## Checking that both logs have the same number of entries
-        # if log1.shape[0] != log2.shape[0]:
-        #     raise ValueError("Dataframe shapes are not equal. Double check the entries again.")
 
         ## If either logs are empty, (0,0) is returned
         if log1.shape[0] == 0 or log2.shape[0] == 0:
@@ -61,43 +58,42 @@ class DataLogHelper:
         identical_mutation_errors = 0   # tasks with IdenticalMutationError
         both_succeeded = 0              # tasks where both logs succeeded
 
-        total_tasks = log1.shape[0]
+        total_tasks = 52
         print(f"Starting comparison of {total_tasks} tasks...")
 
         ## Checking for inconsistencies between both logs
-        for idx in range(total_tasks):
-            log1_data = log1.loc[idx]
-            log1 = log1.drop(index = idx)
 
-            task_id = log1_data['task_id']
-            log_2_matched_data = log2[log2["task_id"] == task_id]
+        for idx in range(1, total_tasks+1):
+            task_id = f"TurbulenceQ{idx}"
+            log1_task_qns = log1[log1['task_id'] == task_id].reset_index(drop=True)
+            log2_task_qns = log2[log2['task_id'] == task_id].reset_index(drop=True)
 
-            if log_2_matched_data.shape[0] != 1:
-                # raise  ValueError(f"Expected exactly one matched task_id in log_2, but found {log_2_matched_data.shape[0]} matched task_id.")
-                continue
+            if len(log1_task_qns) != len(log2_task_qns):
+                raise ValueError("Both logs do not have the same number of questions.")
 
-            log2_data = log_2_matched_data.iloc[0]
-            log2_data_index = log_2_matched_data.index[0]
-            log2 = log2.drop(index = log2_data_index)
+            for task_idx in range(len(log1_task_qns)):
+                log1_data = log1_task_qns.loc[task_idx]
+                log1_task_qns = log1_task_qns.drop(index = task_idx)
 
-            log1_result = log1_data['failure_type']
-            log2_result = log2_data['failure_type']
+                log2_data = log2_task_qns.loc[task_idx]
+                log2_task_qns = log2_task_qns.drop(index = task_idx)
 
+                log1_result = log1_data['failure_type']
+                log2_result = log2_data['failure_type']
 
-            if (isinstance(log1_result, float) and (isinstance(log2_result, str) and AssertionError.__name__ in log2_result)) or (
-                isinstance(log2_result, float) and (isinstance(log1_result, str) and AssertionError.__name__ in log1_result)) or (
-                isinstance(log1_result, float) and isinstance(log2_result, float)):
-                tot += 1
-                # Check if both succeeded (both are NaN/float)
-                if isinstance(log1_result, float) and isinstance(log2_result, float):
-                    both_succeeded += 1
-                # One succeeded, one failed - this is an inconsistency
-                elif not isinstance(log2_result, float):
-                    log2_inconsistencies += 1
-                    print(f"Task {task_id}: log1 succeeded, log2 failed ({log2_result})")
-                elif not isinstance(log1_result, float):
-                    log1_inconsistencies +=1
-
+                if (isinstance(log1_result, float) and (isinstance(log2_result, str) and AssertionError.__name__ in log2_result)) or (
+                    isinstance(log2_result, float) and (isinstance(log1_result, str) and AssertionError.__name__ in log1_result)) or (
+                    isinstance(log1_result, float) and isinstance(log2_result, float)):
+                    tot += 1
+                    # Check if both succeeded (both are NaN/float)
+                    if isinstance(log1_result, float) and isinstance(log2_result, float):
+                        both_succeeded += 1
+                    # One succeeded, one failed - this is an inconsistency
+                    elif not isinstance(log2_result, float):
+                        log2_inconsistencies += 1
+                    elif not isinstance(log1_result, float):
+                        log1_inconsistencies +=1
+                
 
         ## Checking if log1 have any remaining entries. This is not used now, but could come in handy in the future.
         # if log1.shape[0] > 0:
@@ -123,3 +119,7 @@ class DataLogHelper:
         print(f"Total inconsistencies: {total_inconsistencies}/{tot}")
 
         return f"{log1_inconsistencies}/{tot}", f"{log2_inconsistencies}/{tot}"
+    
+    @staticmethod
+    def obtain_turbulence_code_inconsistency_score(log: pd.DataFrame) -> Dict[str, float]:
+        pass

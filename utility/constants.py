@@ -45,21 +45,25 @@ class Benchmarks:
     class CruxEval:
         NAME = "CruxEval"
 
+    class Turbulence:
+        NAME = "Turbulence"
+
 CodeMMLU = Benchmarks.CodeMMLU
 HumanEval = Benchmarks.HumanEval
 BigCodeBench = Benchmarks.BigCodeBench
 CruxEval = Benchmarks.CruxEval
+Turbulence = Benchmarks.Turbulence
 
 class Tasks:
     class CodeGeneration:
         NAME = "code_generation"
-        BENCHMARKS = (Benchmarks.HumanEval.NAME, Benchmarks.BigCodeBench.NAME)
+        BENCHMARKS = (HumanEval.NAME, BigCodeBench.NAME, Turbulence.NAME)
         MUTATIONS = [getattr(LexicalMutations, m) for m in dir(LexicalMutations) if not m.startswith("__")]
             
 
     class MCQInconsistency:
         NAME = "mcq_inconsistency"
-        BENCHMARKS = (Benchmarks.CodeMMLU.NAME,)
+        BENCHMARKS = (CodeMMLU.NAME,)
         MUTATIONS = [
             getattr(SyntacticMutations, m) for m in dir(SyntacticMutations) if not m.startswith("__")] + [
             getattr(LogicalMutations, m) for m in dir(LogicalMutations) if not m.startswith("__")] + [
@@ -68,7 +72,7 @@ class Tasks:
         
     class OutputPrediction:
         NAME = "output_prediction"
-        BENCHMARKS = (Benchmarks.HumanEval.NAME, Benchmarks.CruxEval.NAME)
+        BENCHMARKS = (HumanEval.NAME, CruxEval.NAME)
         MUTATIONS = [
             getattr(SyntacticMutations, m) for m in dir(SyntacticMutations) if not m.startswith("__")] + [
             getattr(LogicalMutations, m) for m in dir(LogicalMutations) if not m.startswith("__")] + [
@@ -95,3 +99,7 @@ class LLMModels:
 
 ReasoningModels = LLMModels.ReasoningModels
 NonReasoningModels = LLMModels.NonReasoningModels
+
+class SamplingMethods:
+    SYSTEMATIC = "systematic"
+    RANDOM = 'random'

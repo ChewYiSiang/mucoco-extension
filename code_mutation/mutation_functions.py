@@ -31,6 +31,7 @@ BIGCODEBENCH = Benchmarks.BigCodeBench.NAME
 CODEMMLU = Benchmarks.CodeMMLU.NAME
 HUMANEVAL = Benchmarks.HumanEval.NAME
 CRUXEVAL = Benchmarks.CruxEval.NAME
+TURBULENCE = Benchmarks.Turbulence.NAME
 
 def run_llm_answer(mutated_sol: str, expected_output: Any, func_name: str, mp_queue: multiprocessing.Queue, test_input: Any = 'no_input'):
         """
@@ -53,7 +54,6 @@ def run_llm_answer(mutated_sol: str, expected_output: Any, func_name: str, mp_qu
 
 class CodeMutator:
     # Main class for applying various types of code mutations while preserving functionality.
-    
     def __init__(self, func_name: str, mutated_dict: Dict[str, Any]):
         self.func_name = func_name
         self.mutated_dict = mutated_dict
@@ -211,7 +211,6 @@ class CodeMutator:
             raise MutationFailedError(e)
         
         ## note : No post mutation check is conducted as it is assumed that lexical mutations should not impact the canonical solution
-
         
     def mutate_for_mcq_inconsistency(
             self,
@@ -322,9 +321,6 @@ class CodeMutator:
             tree: ast.AST,
             input_args: Any = None,
     ):
-                
-        full_sol = self.mutated_dict['question']
-        examples = self.mutated_dict['examples']
 
         logical_mutations = [getattr(Mutations.LogicalMutations, m) for m in dir(Mutations.LogicalMutations) if not m.startswith("__")]
         lexical_mutations = [getattr(Mutations.LexicalMutations, m) for m in dir(Mutations.LexicalMutations) if not m.startswith("__")]
@@ -332,6 +328,8 @@ class CodeMutator:
 
         try:
             if mutation_type in syntactic_mutations:
+                full_sol = self.mutated_dict['question']
+                examples = self.mutated_dict['examples']
                 if mutation_type == FOR2WHILE:
                     if task_set in (HUMANEVAL, CODEMMLU):
                         input_metadata = PredictionInconsistencyHumanEvalHelper.extract_input_metadata(examples = examples, qn = full_sol)
@@ -380,7 +378,7 @@ class CodeMutator:
                     mutated_sol = self.mutate_variable_names(
                         func_names=func_names, 
                         mutation_type=mutation_type,
-                        var_names=var_names,
+                        var_names=var_names if task_set != TURBULENCE else None,
                     )
 
             else:
@@ -590,7 +588,7 @@ class CodeMutator:
             self.mutated_dict['qn_desc'] = qn_desc
 
 
-        # Applying mutation onto question choices, for MCQInconsistency mutation cases
+        # 6) Applying mutation onto question choices, only used for MCQInconsistency mutation cases
         if choices is not None:
             for key, choice in choices.items():
                 new_choice = choice
@@ -600,12 +598,15 @@ class CodeMutator:
                 choices[key] = new_choice
             self.mutated_dict['choices'] = choices
         
+        # 7) Applying the mutation onto the check_function
         if check_function is not None:
             for name in rename_map:
                 pattern = r'\b{}\b'.format(re.escape(name))  # safe + whole word
                 check_function = re.sub(pattern, rename_map[name], check_function)
             self.mutated_dict['check_function'] = check_function
 
+
+        # 8) Applying the mutation onto the full solution
         if full_sol is not None:
             full_sol_tree = ast.parse(full_sol)
             mutated_full_sol = var_name_transformer.visit(full_sol_tree)

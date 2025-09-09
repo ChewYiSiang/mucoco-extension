@@ -179,7 +179,7 @@ class CodeGenerationTester(Tester):
                     "task_id": task_id,
                     "prompt" : None,
                     "model_output": None,
-                    "check_function": test_function,
+                    "check_function": None,
                     "canonical_solution": complete_soln,
                     "failure_type": None
                 }
@@ -240,7 +240,9 @@ class CodeGenerationTester(Tester):
                     )
                     func_name = codemutator.func_name
 
-                    log_data_entry['canonical_solution'] = codemutator.mutated_dict['full_sol']
+                # updating log_data_entry with mutated programs (if any)
+                log_data_entry['canonical_solution'] = codemutator.mutated_dict['full_sol']
+                log_data_entry['check_function'] = codemutator.mutated_dict['check_function']
 
                 # Formating of examples into doc test format for one shot/few shot prompts
                 if example_helper is not None:
@@ -291,8 +293,7 @@ class CodeGenerationTester(Tester):
                         continue
 
                 log_data_entry['model_output'] = ans       # storing the answer in input_data dict
-                ## LLM Answer Test Execution    
-        
+                ## LLM Answer Test Execution
                 try:
                     # multiprocessing library is used here as some LLM answers are wrong and uses a while loop which runs indefinitely.
                     #   This ensures that the LLM answer execution will automatically timeout after timeout seconds
@@ -300,7 +301,7 @@ class CodeGenerationTester(Tester):
 
                     verify_answer_process = multiprocessing.Process(        
                         target= test_set_helper.run_llm_answer,
-                        args = (ans, test_function, func_name, multiprocessing_queue)
+                        args = (ans, codemutator.mutated_dict['check_function'], func_name, multiprocessing_queue)
                         )
 
                     verify_answer_process.start()
@@ -326,6 +327,9 @@ class CodeGenerationTester(Tester):
                         raise AssertionError(error)
                     elif over_run:
                         raise AssertionError(RuntimeError)
+                    
+                    multiprocessing_queue.close()
+                    multiprocessing_queue.join_thread()
                     
                     task_pass_count += 1
 

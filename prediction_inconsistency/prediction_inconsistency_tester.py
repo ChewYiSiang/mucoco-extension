@@ -47,9 +47,9 @@ class LLMConsistencyTester(CodeGenerationTester):
         llm_timeout = 20
 
         if prompt_type == PromptTypes.ONE_SHOT:
-            example_helper= PredictionInconsistencyPromptTemplate.structure_one_shot_example
+            example_helper= PredictionInconsistencyPromptTemplate.InputPrediction.structure_one_shot_example
         elif prompt_type == PromptTypes.FEW_SHOT:
-            example_helper = PredictionInconsistencyPromptTemplate.structure_few_shot_examples
+            example_helper = PredictionInconsistencyPromptTemplate.InputPrediction.structure_few_shot_examples
         else:
             example_helper = None
 
