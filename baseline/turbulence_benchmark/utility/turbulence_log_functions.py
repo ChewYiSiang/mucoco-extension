@@ -1,12 +1,24 @@
 import pandas as pd
 from typing import Tuple, Any, List, Dict
+from database import MongoDBHelper
 
 class TurbulenceLogHelper:
     def __init__(self):
-        self.total_task = 52
+        db_helper = MongoDBHelper()
+        turbulence_db = db_helper.client["Baseline_Questions_DB"]["Turbulence_Benchmark"]
+        self.total_task = turbulence_db.count_documents({})
 
     @staticmethod
-    def obtain_mucoco_code_inconsistency_score(log1: pd.DataFrame, log2: pd.DataFrame) -> Tuple[int, int]:
+    def obtain_row_names(file_names : List[str]) -> List[str]:
+        row_names = []
+        while len(file_names) > 0:
+            file_name = file_names.pop()
+            for other_file_name in file_names:
+                row_names.append(f"{file_name} - {other_file_name}")
+        
+        return row_names
+
+    def obtain_mucoco_code_inconsistency_score(self, log1: pd.DataFrame, log2: pd.DataFrame) -> Dict[str, int]:
         """
         This function is used to compare between two pd dataframes containing the logs of two comparable code generation runs and returns any inconsistencies found between the two logs.
         
@@ -50,20 +62,17 @@ class TurbulenceLogHelper:
         if log1.shape[0] == 0 or log2.shape[0] == 0:
             return 0, 0
         
-        # unmatched_ids = set()           # set storing all task_ids that did not have a match
         log1_inconsistencies = 0        # inconsistencies from log1
         log2_inconsistencies = 0        # inconsistencies from log2
         tot = 0                         # union between tasks solved correctly in both logs
         both_failed = 0                 # tasks where both logs failed
-        identical_mutation_errors = 0   # tasks with IdenticalMutationError
         both_succeeded = 0              # tasks where both logs succeeded
 
-        total_tasks = 52
-        print(f"Starting comparison of {total_tasks} tasks...")
+        print(f"Starting comparison of {self.total_task} tasks...")
 
         ## Checking for inconsistencies between both logs
 
-        for idx in range(1, total_tasks+1):
+        for idx in range(1, self.total_task+1):
             task_id = f"TurbulenceQ{idx}"
             log1_task_qns = log1[log1['task_id'] == task_id].reset_index(drop=True)
             log2_task_qns = log2[log2['task_id'] == task_id].reset_index(drop=True)
@@ -108,18 +117,60 @@ class TurbulenceLogHelper:
         #         unmatched_ids.add(task["task_id"])
 
         print(f"\n=== COMPARISON SUMMARY ===")
-        print(f"Total tasks processed: {total_tasks}")
+        print(f"Total tasks processed: {self.total_task}")
         print(f"Both succeeded: {both_succeeded}")
         print(f"Both failed: {both_failed}")
-        print(f"IdenticalMutationError: {identical_mutation_errors}")
         print(f"Comparable tasks (atleast one succeeded): {tot}")
         print(f"  - Log1 failed, Log2 succeeded: {log1_inconsistencies}")
         print(f"  - Log1 succeeded, Log2 failed: {log2_inconsistencies}")
         total_inconsistencies = log1_inconsistencies + log2_inconsistencies
         print(f"Total inconsistencies: {total_inconsistencies}/{tot}")
 
-        return f"{log1_inconsistencies}/{tot}", f"{log2_inconsistencies}/{tot}"
+        return {
+            "log1_inconsistencies" : log1_inconsistencies,
+            "log2_inconsistencies" : log2_inconsistencies,
+            "total_correct" : tot,
+        }
     
     @staticmethod
     def obtain_turbulence_code_inconsistency_score(log: pd.DataFrame) -> Dict[str, float]:
         pass
+
+
+    def obtain_question_inconsistency_count(self, log: pd.DataFrame) -> Dict[str, float]:
+        """
+        This method obtains the number of inconsistent questions in the Turbulence dataset.
+        These score measures inconsistency between question instances of the same template. 
+        
+        For example, if 10 tasks are instantiated from a template and 1 of the tasks was incorrect, this question is considered "inconsistent" at a question template level.
+
+        Args: 
+            log (pd.Dataframe): Pandas dataframe of the log results
+
+        Returns:
+            Dict[str, float]: A dictionary containing the question inconsistency count and total number of tasks
+        """
+        inconsistent_qn_count = 0
+
+        for idx in range(1, self.total_task):
+            task_id = f"TurbulenceQ{idx}"
+            log_task_qns = log[log['task_id'] == task_id].reset_index(drop=True)
+
+
+            consistency_type = None
+            for task_idx in range(len(log_task_qns)):
+                qn_outcome = log_task_qns.loc[task_idx]['failure_type']
+
+                                
+                if consistency_type is None:
+                    consistency_type = str(qn_outcome).strip()
+                elif consistency_type != str(qn_outcome).strip():
+                    print(task_id, type(consistency_type), consistency_type, type(qn_outcome), qn_outcome)
+                    inconsistent_qn_count += 1
+                    break
+        
+        return {
+            "inconsistent_qn_count" : inconsistent_qn_count,
+            "total_tasks" : self.total_task
+        }
+
