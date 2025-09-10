@@ -9,16 +9,6 @@ class TurbulenceLogHelper:
         turbulence_db = db_helper.client["Baseline_Questions_DB"]["Turbulence_Benchmark"]
         self.total_task = turbulence_db.count_documents({})
 
-    @staticmethod
-    def obtain_row_names(file_names : List[str]) -> List[str]:
-        row_names = []
-        while len(file_names) > 0:
-            file_name = file_names.pop()
-            for other_file_name in file_names:
-                row_names.append(f"{file_name} - {other_file_name}")
-        
-        return row_names
-
     def obtain_mucoco_code_inconsistency_score(self, log1: pd.DataFrame, log2: pd.DataFrame) -> Dict[str, int]:
         """
         This function is used to compare between two pd dataframes containing the logs of two comparable code generation runs and returns any inconsistencies found between the two logs.
@@ -124,11 +114,7 @@ class TurbulenceLogHelper:
         total_inconsistencies = log1_inconsistencies + log2_inconsistencies
         print(f"Total inconsistencies: {total_inconsistencies}/{tot}")
 
-        return {
-            "log1_inconsistencies" : log1_inconsistencies,
-            "log2_inconsistencies" : log2_inconsistencies,
-            "total_correct" : tot,
-        }
+        return f"{log1_inconsistencies + log2_inconsistencies}/{tot}", round((log1_inconsistencies + log2_inconsistencies)*100/tot,2)
     
     def obtain_turbulence_code_inconsistency_score(self, log: pd.DataFrame) -> Dict[str, float]:
         """
@@ -146,17 +132,10 @@ class TurbulenceLogHelper:
             for (_, row1), (_, row2) in combinations(log_task_qns.iterrows(), 2):
                 total_comparisons += 1
                 if str(row1['failure_type']).strip() != str(row2['failure_type']).strip():
-                    print(task_id, row1['failure_type'], row2['failure_type'])
+                    # print(task_id, row1['failure_type'], row2['failure_type'])
                     inconsistency_count += 1
                 
-        return {
-            "inconsistency_count" : inconsistency_count,
-            "total_comparisons" : total_comparisons
-        }
-
-
-
-
+        return f"{inconsistency_count}/{total_comparisons}", f"{round(inconsistency_count*100/total_comparisons, 2)}"
 
     def obtain_question_inconsistency_count(self, log: pd.DataFrame) -> Dict[str, float]:
         """
@@ -189,8 +168,4 @@ class TurbulenceLogHelper:
                     inconsistent_qn_count += 1
                     break
         
-        return {
-            "inconsistent_qn_count" : inconsistent_qn_count,
-            "total_tasks" : self.total_task
-        }
-
+        return f"{inconsistent_qn_count}/{self.total_task}", f"{round(inconsistent_qn_count*100/self.total_task, 2)}"
