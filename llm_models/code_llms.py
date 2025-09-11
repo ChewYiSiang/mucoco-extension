@@ -7,6 +7,7 @@ from langchain.prompts import ChatPromptTemplate
 import re
 from abc import ABC, abstractmethod
 from dotenv import load_dotenv
+from openai import OpenAI
 
 class CodeLLM(ABC):
     @abstractmethod
@@ -42,7 +43,20 @@ class Mistral(CodeLLM):
         chain = prompt | self.model
         ans = chain.invoke(input = input_variables)
         return ans.content
-
+    
+class OpenAILLM(CodeLLM):
+    def __init__(self, model_name):
+        self.model_name = model_name
+        self.client = OpenAI()
+    
+    def invoke(self, input_variables: Dict[str, str], prompt_template: str) -> str | None:
+        prompt = prompt_template.format(**input_variables)
+        result = self.client.responses.create(
+            model=self.model_name,
+            input=prompt,
+            temperature=0,
+        )
+        return result.output_text
 
 class MistralGPU(CodeLLM):
     def __init__(self, model_name):

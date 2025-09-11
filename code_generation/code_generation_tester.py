@@ -11,31 +11,31 @@ import pandas as pd
 import multiprocessing
 import shutil
 import regex as re
-from utility.constants import PromptTypes, CodeGeneration
+from utility.constants import PromptTypes, CodeGeneration, ReasoningModels, NonReasoningModels, LexicalMutations
 from code_mutation.mutation_relations import check_for_mutation_conflicts
 from llm_models.code_llms import Mistral
 import torch
 from llm_models.gpu_code_llms import TransformersCodeLLM
 
 
-def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: multiprocessing.Queue):
-    llm = Mistral()
+def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: multiprocessing.Queue, llm_model : Callable):
+    llm = llm_model()
     ans = llm.invoke(input_variables=input_variables, prompt_template=prompt_template)
     queue.put(ans)
 
 class Tester:
-    def execute_llm(self, input_variables: Dict[str, str], prompt_template: str):
-        llm_timeout = 8
-
+    def execute_llm(self, input_variables: Dict[str, str], prompt_template: str, llm_model : Callable = Mistral):
+        llm_timeout = 30
+            
         ## Running the llm on the input variables and the prompt template
         multiprocessing_queue = multiprocessing.Queue()
-
         verify_answer_process = multiprocessing.Process(
             target= invoke_llm,
             kwargs={
                 "input_variables": input_variables,
                 "prompt_template": prompt_template,
-                "queue": multiprocessing_queue
+                "queue": multiprocessing_queue,
+                "llm_model": llm_model 
             }
         )
 
@@ -45,10 +45,11 @@ class Tester:
         if verify_answer_process.is_alive():
             verify_answer_process.kill()
             verify_answer_process.join()
-            raise RuntimeError(f"LLM could not answer the task within {llm_timeout} seconds.")
+            raise LLMExecutionRuntimeError(f"LLM could not answer the task within {llm_timeout} seconds.")
 
         if not multiprocessing_queue.empty():
             ans = multiprocessing_queue.get()
+
             return ans
         else:
             raise LLMExecutionError(f"LLM did not return any answer")
@@ -120,7 +121,7 @@ class CodeGenerationTester(Tester):
             raise ValueError("An invalid combination of mutations were used.")
 
         for mutation in mutations:
-            if mutation not in CodeGeneration.MUTATIONS:
+            if mutation not in CodeGeneration.MUTATIONS or mutation == LexicalMutations.LITERAL_FORMAT:
                 raise ValueError(f"{mutation} mutation is an invalid mutation for code generation.")
             
         if task_set not in CodeGeneration.BENCHMARKS:
@@ -134,6 +135,17 @@ class CodeGenerationTester(Tester):
 
         if using_GPU:
             llm = TransformersCodeLLM(model_name=model_name)
+        else:
+            reasoning_models = [getattr(ReasoningModels, model) for model in dir(ReasoningModels) if not model.startswith("_")]
+            non_reasoning_models = [getattr(NonReasoningModels, model) for model in dir(NonReasoningModels) if not model.startswith("_")]
+            all_local_models = reasoning_models + non_reasoning_models
+            for model in all_local_models:
+                if model['name'] == model_name:
+                    llm = model['model_class']
+                    break
+            else:
+                valid_model_names = [model['name'] for model in all_local_models]
+                raise ValueError(f"{model_name} is not a valid local model. The models supported by this framework are {', '.join(valid_model_names)}")
 
         try:                            # try statement to catch any potential errors arising from using free APIs. These APIs are usually unstable and can crash at any time. 
             for idx in tqdm(range(continue_from, continue_from + num_tests)):
@@ -255,10 +267,11 @@ class CodeGenerationTester(Tester):
 
                     try: 
                         # Running the llm on the input variables and the prompt template
-                        ans = self.execute_llm(input_variables = input_variables, prompt_template = prompt_template)
+                        ans = self.execute_llm(input_variables = input_variables, prompt_template = prompt_template, llm_model = llm)
 
                         # Processing of the llm answer. Some llm answers are in Python code blocks, which needs to be processed as it will fail exec()
                         ans = CodeGenerationTester.process_llm_ans(ans)
+                    
                     except ValueError:                          # Raised when the llm answer did not have a python code block
                         try: 
                             exec(ans)                           # Attempting to run the llm answer directly. In some cases, the returned answer can be directly run as no code block was returned
@@ -343,8 +356,8 @@ class LLMExecutionError(Exception):
         super().__init__(error)
 
 class LLMExecutionRuntimeError(RuntimeError):
-    def __init__(self):
-        super().__init__("LLM could not answer the task within the given time limit")
+    def __init__(self, message):
+        super().__init__(message)
 
 
 if __name__ == "__main__":

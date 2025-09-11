@@ -1,13 +1,12 @@
 from mcq_inconsistency.utility.codemmlu_helper import CodeGenerationCodeMMLUHelper
 from code_generation.code_generation_tester import CodeGenerationTester
 from code_mutation.mutation_functions import CodeMutator
-from utility.constants import PromptTypes, Tasks, MCQInconsistency, CodeMMLU
+from utility.constants import PromptTypes, Tasks, MCQInconsistency, CodeMMLU, NonReasoningModels, ReasoningModels
 from typing import Callable, Dict, Any, List
 from tqdm import tqdm
 import time
 import ast
 import multiprocessing
-from llm_models.code_llms import Mistral
 from code_mutation.mutation_relations import check_for_mutation_conflicts
 from llm_models.gpu_code_llms import TransformersCodeLLM
 from mcq_inconsistency.prompt_templates.prompt_template import MCQInconsistencyPromptTemplate
@@ -20,8 +19,8 @@ ANS_DICT = {
     "D" : 3,
 }
 
-def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: multiprocessing.Queue):
-    llm = Mistral()
+def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: multiprocessing.Queue, llm_model : Callable):
+    llm = llm_model()
     ans = llm.invoke(input_variables=input_variables, prompt_template=prompt_template)
     queue.put(ans)
 
@@ -88,10 +87,20 @@ class LLMMCQInconsistencyTester(CodeGenerationTester):
             answers = self.question_database.find({}, { "_id": 0, "answer": 1 })
             filtered_ans = [ans['answer'] for ans in answers]
             llm = TransformersCodeLLM(model_name=model_name, answers= filtered_ans)
-
+        else:
+            reasoning_models = [getattr(ReasoningModels, model) for model in dir(ReasoningModels) if not model.startswith("_")]
+            non_reasoning_models = [getattr(NonReasoningModels, model) for model in dir(NonReasoningModels) if not model.startswith("_")]
+            all_local_models = reasoning_models + non_reasoning_models
+            for model in all_local_models:
+                if model['name'] == model_name:
+                    llm = model['model_class']
+                    break
+            else:
+                valid_model_names = [model['name'] for model in all_local_models]
+                raise ValueError(f"{model_name} is not a valid local model. The models supported by this framework are {', '.join(valid_model_names)}")
         try:                            # try statement to catch any potential errors arising from using free APIs. These APIs are usually unstable and can crash at any time. 
             for idx in tqdm(range(continue_from, continue_from + num_tests)):
-                task_id = f"{task_set}{idx}"
+                task_id = f"{task_set}MCQ{idx}"
 
                 qn_sample = self.question_database.find_one({"_id": task_id})
                 if qn_sample is None:                               # next task if unable to extract the specific qn id from MongoDB
@@ -209,11 +218,15 @@ class LLMMCQInconsistencyTester(CodeGenerationTester):
                     log_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
                     log_entry['geometric'] = prob
                 else: 
+                    try:
+                        ans = self.execute_llm(
+                            input_variables=input_variables,
+                            prompt_template=prompt_template,
+                            llm_model=llm
+                        )
+                    except Exception as e:
+                        log_entry['failure_type'] = f"{type(e).__name__} > {e}"
 
-                    ans = self.execute_llm(
-                        input_variables=input_variables,
-                        prompt_template=prompt_template
-                    )
 
                     ans = LLMMCQInconsistencyTester.process_llm_ans(ans)
                     log_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry

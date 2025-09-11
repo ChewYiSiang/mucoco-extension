@@ -1,7 +1,7 @@
 from prediction_inconsistency.utility.humaneval_helper import PredictionInconsistencyHumanEvalHelper
 from code_generation.code_generation_tester import CodeGenerationTester
 from code_mutation.mutation_functions import CodeMutator
-from utility.constants import PromptTypes, Tasks, InputPrediction, MCQInconsistency, CruxEval, HumanEval
+from utility.constants import PromptTypes, Tasks, InputPrediction, MCQInconsistency, CruxEval, HumanEval, ReasoningModels, NonReasoningModels
 from typing import Callable, Dict, Any, List
 from tqdm import tqdm
 import time
@@ -15,8 +15,8 @@ from code_mutation.mutation_relations import check_for_mutation_conflicts
 from prediction_inconsistency.prompt_templates.prompt_template import PredictionInconsistencyPromptTemplate
 
 
-def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: multiprocessing.Queue):
-    llm = Mistral()
+def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: multiprocessing.Queue, llm_model : Callable):
+    llm = llm_model()
     ans = llm.invoke(input_variables=input_variables, prompt_template=prompt_template)
     queue.put(ans)
 
@@ -81,7 +81,17 @@ class LLMConsistencyTester(CodeGenerationTester):
                 filtered_ans = ["True"]
 
             llm = TransformersCodeLLM(model_name=model_name, answers= filtered_ans)
-        
+        else:
+            reasoning_models = [getattr(ReasoningModels, model) for model in dir(ReasoningModels) if not model.startswith("_")]
+            non_reasoning_models = [getattr(NonReasoningModels, model) for model in dir(NonReasoningModels) if not model.startswith("_")]
+            all_local_models = reasoning_models + non_reasoning_models
+            for model in all_local_models:
+                if model['name'] == model_name:
+                    llm = model['model_class']
+                    break
+            else:
+                valid_model_names = [model['name'] for model in all_local_models]
+                raise ValueError(f"{model_name} is not a valid local model. The models supported by this framework are {', '.join(valid_model_names)}")
         try:                            # try statement to catch any potential errors arising from using free APIs. These APIs are usually unstable and can crash at any time. 
             for idx in tqdm(range(continue_from, continue_from + num_tests)):
                 task_id = f"{task_set}TF{idx}"
@@ -215,10 +225,14 @@ class LLMConsistencyTester(CodeGenerationTester):
                     log_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
 
                 else: 
-                    ans = self.execute_llm(
-                        input_variables=input_variables,
-                        prompt_template=prompt_template
-                    )
+                    try:
+                        ans = self.execute_llm(
+                            input_variables=input_variables,
+                            prompt_template=prompt_template,
+                            llm_model=llm
+                        )
+                    except Exception as e:
+                        log_entry['failure_type'] = f"{type(e).__name__} > {e}"
 
                     ans = LLMConsistencyTester.process_llm_ans(ans)
                 

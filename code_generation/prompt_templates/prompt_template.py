@@ -93,7 +93,6 @@ class OpenEndedPromptTemplate(PromptTemplate):
         # Return all code snippet in your answer. 
         # Preserve indentation.
 
-
         ### Example:
 
         # Task
@@ -115,7 +114,7 @@ class OpenEndedPromptTemplate(PromptTemplate):
         # Your Answer:
         """)
         return prompt
-    
+
     def one_shot_prompt(self) -> str:
         prompt = textwrap.dedent("""
             # Complete the code for the following function given it's description. Only complete the code function and do not add any other details. You may use the given example to write your code. Return your answer as a complete function, including any provided code. 
