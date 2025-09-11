@@ -94,6 +94,7 @@ class ASTNodeHelper:
         def visit_BinOp(self, node):
             if isinstance(node.op, (ast.Add, ast.Mult)):
                 self.commutative_operation_exists = True
+                return # early return if + or * detected
 
     class ConstantUnfoldDetectorNodeVisitor(ast.NodeVisitor):
         """
