@@ -17,21 +17,21 @@ def categorize_failure(failure_value):
     
     failure_str = str(failure_value)
     
-    # Mutation errors
+    # Mutation unavailable errors (not actual mutation errors)
     if "NoBooleanLiteralError" in failure_str:
-        return "MUTATION_ERROR_NoBooleanLiteral"
+        return "UNMUTABLE_NoBooleanLiteral"
     elif "IdenticalMutationError" in failure_str:
-        return "MUTATION_ERROR_Identical"
+        return "UNMUTABLE_Identical"
     elif "NoCommutativeOperationError" in failure_str:
-        return "MUTATION_ERROR_NoCommutative"
-    elif "NoConstantError" in failure_str:
-        return "MUTATION_ERROR_NoConstant"
+        return "UNMUTABLE_NoCommutative"
+    elif "NoConstantUnfoldError" in failure_str:
+        return "UNMUTABLE_NoConstant"
     elif "NoDeMorganApplicableError" in failure_str:
-        return "MUTATION_ERROR_NoDeMorgan"
+        return "UNMUTABLE_NoDeMorgan"
     elif "NoForLoopError" in failure_str:
-        return "MUTATION_ERROR_NoForLoop"
+        return "UNMUTABLE_NoForLoop"
     elif "NoLiteralFormatError" in failure_str:
-        return "MUTATION_ERROR_NoLiteralFormat"
+        return "UNMUTABLE_NoLiteralFormat"
     
     # Runtime errors
     elif "SyntaxError" in failure_str:
@@ -97,13 +97,13 @@ def enhanced_comparison(reference_df, comparison_df, reference_name, comparison_
         if comp_category != "SUCCESS":
             stats['error_categories'][comp_category] += 1
         
-        # Check if task has mutation errors (exclude from main analysis)
-        has_mutation_error = (ref_category.startswith("MUTATION_ERROR") or 
-                             comp_category.startswith("MUTATION_ERROR"))
+        # Check if task has unmutable errors (exclude from main analysis)
+        has_unmutable_error = (ref_category.startswith("UNMUTABLE") or 
+                              comp_category.startswith("UNMUTABLE"))
         
-        if has_mutation_error:
+        if has_unmutable_error:
             stats['mutation_error_tasks'] += 1
-            outcome = "MUTATION_ERROR_EXCLUDED"
+            outcome = "UNMUTABLE_EXCLUDED"
         else:
             # This is a mutable task - include in main analysis
             stats['mutable_tasks'] += 1
@@ -151,7 +151,7 @@ def print_detailed_stats(stats, reference_name, comparison_name):
     mutation_errors = stats['mutation_error_tasks']
     
     print(f"Total Tasks: {total}")
-    print(f"Tasks with Mutation Errors: {mutation_errors} ({mutation_errors/total*100:.1f}%)")
+    print(f"Tasks with Unmutable Errors: {mutation_errors} ({mutation_errors/total*100:.1f}%)")
     print(f"Mutable Tasks (analyzed): {mutable} ({mutable/total*100:.1f}%)")
     
     if mutable > 0:
@@ -191,14 +191,14 @@ def print_detailed_stats(stats, reference_name, comparison_name):
     print(f"{'='*40}")
     
     # Group by error type
-    mutation_errors = {k: v for k, v in stats['error_categories'].items() if k.startswith('MUTATION_ERROR')}
+    unmutable_errors = {k: v for k, v in stats['error_categories'].items() if k.startswith('UNMUTABLE')}
     runtime_errors = {k: v for k, v in stats['error_categories'].items() if k.startswith('RUNTIME_ERROR')}
     logic_errors = {k: v for k, v in stats['error_categories'].items() if k.startswith('LOGIC_ERROR')}
     other_errors = {k: v for k, v in stats['error_categories'].items() if k.startswith('OTHER_ERROR')}
     
-    if mutation_errors:
-        print(f"\nMutation Errors:")
-        for error_type, count in sorted(mutation_errors.items()):
+    if unmutable_errors:
+        print(f"\nUnmutable Errors (no mutation possible):")
+        for error_type, count in sorted(unmutable_errors.items()):
             print(f"   {error_type}: {count}")
     
     if runtime_errors:
