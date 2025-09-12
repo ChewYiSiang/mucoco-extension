@@ -58,10 +58,12 @@ class ASTNodeHelper:
         def visit_BoolOp(self, node):
             if isinstance(node.op, (ast.And, ast.Or)):
                 self.boolean_operation_exists = True
+            self.generic_visit(node)
 
         def visit_UnaryOp(self, node):
             if isinstance(node.op, ast.Not) and isinstance(node.operand, ast.BoolOp):
                 self.boolean_operation_exists = True
+            self.generic_visit(node)
 
     class BooleanLiteralDetectorNodeVisitor(ast.NodeVisitor):
         """
