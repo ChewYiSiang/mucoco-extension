@@ -890,19 +890,31 @@ class ASTNodeHelper:
         @staticmethod
         def _unfold_multiplication(value):
             """Unfold using multiplication: n -> a * b where a * b = n"""
-            if value <= 3:
-                return None  # Too small for meaningful factorization
             
-            # Find factors for multiplication
-            for factor in range(2, min(value, 10)):
-                if value % factor == 0:
-                    other_factor = value // factor
-                    return ast.BinOp(
-                        left=ast.Constant(value=factor),
-                        op=ast.Mult(),
-                        right=ast.Constant(value=other_factor)
-                    )
-            return None  # No factors found
+            # Handle factorization for positive values
+            abs_value = abs(value)
+            if abs_value >= 2:
+                # Find factors for multiplication
+                for factor in range(2, min(abs_value, 10)):
+                    if abs_value % factor == 0:
+                        other_factor = abs_value // factor
+                        
+                        # For negative numbers, make the first factor negative
+                        if value < 0:
+                            factor = -factor
+                        
+                        return ast.BinOp(
+                            left=ast.Constant(value=factor),
+                            op=ast.Mult(),
+                            right=ast.Constant(value=other_factor)
+                        )
+            
+            # If no factors found or small number, multiply by 1
+            return ast.BinOp(
+                left=ast.Constant(value=value),
+                op=ast.Mult(),
+                right=ast.Constant(value=1)
+            )
         
         def visit_Constant(self, node):
             self.generic_visit(node)
@@ -947,23 +959,37 @@ class ASTNodeHelper:
     class ConstantUnfoldMultTransformer(ast.NodeTransformer):
         """
         Unfold constant expressions using multiplication only.
-        Only transforms if factorization is possible.
-        E.g., 10 ↔ 2 * 5, 6 ↔ 2 * 3 (but 7 stays as 7)
+        Tries factorization first, fallback to multiplication by 1 for primes.
+        E.g., 10 → 2 * 5, 6 → 2 * 3, 7 → 7 * 1, 1 → 1 * 1
         """
         def visit_Constant(self, node):
             self.generic_visit(node)
             
-            if isinstance(node.value, int) and node.value > 3:
-                # Find factors for multiplication
-                for factor in range(2, min(node.value, 10)):
-                    if node.value % factor == 0:
-                        other_factor = node.value // factor
-                        return ast.BinOp(
-                            left=ast.Constant(value=factor),
-                            op=ast.Mult(),
-                            right=ast.Constant(value=other_factor)
-                        )
-                # If no factors found, don't transform
+            if isinstance(node.value, int):
+                # Handle factorization for positive values
+                abs_value = abs(node.value)
+                if abs_value >= 2:
+                    # First try to find factors for meaningful factorization
+                    for factor in range(2, min(abs_value, 10)):
+                        if abs_value % factor == 0:
+                            other_factor = abs_value // factor
+                            
+                            # For negative numbers, make the first factor negative
+                            if node.value < 0:
+                                factor = -factor
+                            
+                            return ast.BinOp(
+                                left=ast.Constant(value=factor),
+                                op=ast.Mult(),
+                                right=ast.Constant(value=other_factor)
+                            )
+                
+                # If no factors found or small number, multiply by 1
+                return ast.BinOp(
+                    left=ast.Constant(value=node.value),
+                    op=ast.Mult(),
+                    right=ast.Constant(value=1)
+                )
 
             
             return node
