@@ -26,7 +26,7 @@ def categorize_failure(failure_value):
         return "UNMUTABLE_NoCommutative"
     elif "NoConstantUnfoldError" in failure_str:
         return "UNMUTABLE_NoConstant"
-    elif "NoDeMorganApplicableError" in failure_str:
+    elif "NoBooleanOperationError" in failure_str:
         return "UNMUTABLE_NoDeMorgan"
     elif "NoForLoopError" in failure_str:
         return "UNMUTABLE_NoForLoop"
