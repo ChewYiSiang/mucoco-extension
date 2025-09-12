@@ -879,13 +879,34 @@ class ASTNodeHelper:
         @staticmethod
         def _unfold_addition(value):
             """Unfold using addition: n -> a + b where a + b = n"""
-            half = value // 2
-            remainder = value - half
-            return ast.BinOp(
-                left=ast.Constant(value=half),
-                op=ast.Add(),
-                right=ast.Constant(value=remainder)
-            )
+            # Handle special cases for small numbers
+            if value == 0:
+                return ast.BinOp(
+                    left=ast.Constant(value=0),
+                    op=ast.Add(),
+                    right=ast.Constant(value=0)
+                )
+            elif value == 1:
+                return ast.BinOp(
+                    left=ast.Constant(value=0),
+                    op=ast.Add(),
+                    right=ast.Constant(value=1)
+                )
+            elif value == -1:
+                return ast.BinOp(
+                    left=ast.Constant(value=0),
+                    op=ast.Add(),
+                    right=ast.Constant(value=-1)
+                )
+            else:
+                # General case: split number in half
+                half = value // 2
+                remainder = value - half
+                return ast.BinOp(
+                    left=ast.Constant(value=half),
+                    op=ast.Add(),
+                    right=ast.Constant(value=remainder)
+                )
         
         @staticmethod
         def _unfold_multiplication(value):
@@ -939,20 +960,40 @@ class ASTNodeHelper:
     class ConstantUnfoldAddTransformer(ast.NodeTransformer):
         """
         Unfold constant expressions using addition only.
-        E.g., 10 ↔ 5 + 5, 7 ↔ 3 + 4
+        E.g., 10 → 5 + 5, 7 → 3 + 4, 1 → 0 + 1, 0 → 0 + 0
         """
         def visit_Constant(self, node):
             self.generic_visit(node)
             
-            if isinstance(node.value, int) and node.value > 1:
-                # Always use addition
-                half = node.value // 2
-                remainder = node.value - half
-                return ast.BinOp(
-                    left=ast.Constant(value=half),
-                    op=ast.Add(),
-                    right=ast.Constant(value=remainder)
-                )
+            if isinstance(node.value, int):
+                # Handle special cases for small numbers
+                if node.value == 0:
+                    return ast.BinOp(
+                        left=ast.Constant(value=0),
+                        op=ast.Add(),
+                        right=ast.Constant(value=0)
+                    )
+                elif node.value == 1:
+                    return ast.BinOp(
+                        left=ast.Constant(value=0),
+                        op=ast.Add(),
+                        right=ast.Constant(value=1)
+                    )
+                elif node.value == -1:
+                    return ast.BinOp(
+                        left=ast.Constant(value=0),
+                        op=ast.Add(),
+                        right=ast.Constant(value=-1)
+                    )
+                else:
+                    # General case: split number in half
+                    half = node.value // 2
+                    remainder = node.value - half
+                    return ast.BinOp(
+                        left=ast.Constant(value=half),
+                        op=ast.Add(),
+                        right=ast.Constant(value=remainder)
+                    )
             
             return node
     
