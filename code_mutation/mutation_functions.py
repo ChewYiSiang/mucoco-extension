@@ -261,6 +261,38 @@ class CodeMutator:
             if for_loop_exists == False:
                 raise NoForLoopError()
 
+        ## Checking for any valid boolean operations before DeMorgan mutations
+        if mutation_type == DEMORGAN:
+            boolean_operation_checker = ASTNodeHelper.BooleanOperationDetectorNodeVisitor()
+            boolean_operation_checker.visit(tree)
+            boolean_operation_exists = boolean_operation_checker.boolean_operation_exists
+            if boolean_operation_exists == False:
+                raise NoBooleanOperationError()
+
+        ## Checking for any boolean literals before BOOLEAN_LITERAL mutations
+        if mutation_type == BOOLEAN_LITERAL:
+            boolean_literal_checker = ASTNodeHelper.BooleanLiteralDetectorNodeVisitor()
+            boolean_literal_checker.visit(tree)
+            boolean_literal_exists = boolean_literal_checker.boolean_literal_exists
+            if boolean_literal_exists == False:
+                raise NoBooleanLiteralError()
+
+        ## Checking for any commutative operations before COMMUTATIVE_REORDER mutations
+        if mutation_type == COMMUTATIVE_REORDER:
+            commutative_operation_checker = ASTNodeHelper.CommutativeOperationDetectorNodeVisitor()
+            commutative_operation_checker.visit(tree)
+            commutative_operation_exists = commutative_operation_checker.commutative_operation_exists
+            if commutative_operation_exists == False:
+                raise NoCommutativeOperationError()
+
+        ## Checking for any constants to unfold before CONSTANT_UNFOLD mutations
+        if mutation_type in (CONSTANT_UNFOLD, CONSTANT_UNFOLD_ADD, CONSTANT_UNFOLD_MULT):
+            constant_unfold_checker = ASTNodeHelper.ConstantUnfoldDetectorNodeVisitor()
+            constant_unfold_checker.visit(tree)
+            constant_unfold_exists = constant_unfold_checker.constant_unfold_exists
+            if constant_unfold_exists == False:
+                raise NoConstantUnfoldError()
+
         ## Handling mutations
         try: 
             self.handle_mutation(
@@ -422,6 +454,38 @@ class CodeMutator:
 
             if for_loop_exists == False:
                 raise NoForLoopError()
+        
+        # Pre condition check that checks if valid boolean operations exist
+        if mutation_type == DEMORGAN:
+            boolean_operation_checker = ASTNodeHelper.BooleanOperationDetectorNodeVisitor()
+            boolean_operation_checker.visit(tree)
+            boolean_operation_exists = boolean_operation_checker.boolean_operation_exists
+            if boolean_operation_exists == False:
+                raise NoBooleanOperationError()
+
+        # Pre condition check that checks if boolean literals exist
+        if mutation_type == BOOLEAN_LITERAL:
+            boolean_literal_checker = ASTNodeHelper.BooleanLiteralDetectorNodeVisitor()
+            boolean_literal_checker.visit(tree)
+            boolean_literal_exists = boolean_literal_checker.boolean_literal_exists
+            if boolean_literal_exists == False:
+                raise NoBooleanLiteralError()
+
+        # Pre condition check that checks if commutative operations exist
+        if mutation_type == COMMUTATIVE_REORDER:
+            commutative_operation_checker = ASTNodeHelper.CommutativeOperationDetectorNodeVisitor()
+            commutative_operation_checker.visit(tree)
+            commutative_operation_exists = commutative_operation_checker.commutative_operation_exists
+            if commutative_operation_exists == False:
+                raise NoCommutativeOperationError()
+
+        # Pre condition check that checks if constants to unfold exist
+        if mutation_type in (CONSTANT_UNFOLD, CONSTANT_UNFOLD_ADD, CONSTANT_UNFOLD_MULT):
+            constant_unfold_checker = ASTNodeHelper.ConstantUnfoldDetectorNodeVisitor()
+            constant_unfold_checker.visit(tree)
+            constant_unfold_exists = constant_unfold_checker.constant_unfold_exists
+            if constant_unfold_exists == False:
+                raise NoConstantUnfoldError()
         
         try:
             self.handle_mutation(
@@ -798,6 +862,26 @@ class NoForLoopError(Exception):
     """Raised when no for loops are in the given program"""
     def __init__(self, *args):
         super().__init__("No valid for loops in the given program")
+
+class NoBooleanOperationError(Exception):
+    """Raised when no boolean operations are in the given program"""
+    def __init__(self):
+        super().__init__("No valid boolean operations in the given program")
+
+class NoBooleanLiteralError(Exception):
+    """Raised when no boolean literals are in the given program"""
+    def __init__(self):
+        super().__init__("No boolean literals in the given program")
+
+class NoCommutativeOperationError(Exception):
+    """Raised when no commutative operations are in the given program"""
+    def __init__(self):
+        super().__init__("No commutative operations in the given program")
+
+class NoConstantUnfoldError(Exception):
+    """Raised when no constants to unfold are in the given program"""
+    def __init__(self):
+        super().__init__("No constants to unfold in the given program")
 
 if __name__ == "__main__":
     print(f"Invalid mutation type was used. The available mutation types are {', '.join(CodeMutator.mutation_types)}")
