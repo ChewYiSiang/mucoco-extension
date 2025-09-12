@@ -16,7 +16,7 @@ class TurbulenceTester(CodeGenerationTester):
             continue_from_task: str = None,
             mutations: List[str] = None,
             model_name: str = NonReasoningModels.GPT4O['name'],
-            sampling_method: str = SamplingMethods.SYSTEMATIC,
+            sampling_method: str = None,
             num_samples_per_task: int = 20,
         ):
         """
@@ -86,20 +86,22 @@ class TurbulenceTester(CodeGenerationTester):
                     test_params.append(params_dict[str(count)])
                     count += step
             else:
-                raise ValueError("Sampling method used was invalid.")                
+                test_params = list(params_dict.values())   
 
-            # Dictionary storing all relevant log data
-            log_data_entry = {
-                "task_id": task_id,
-                "prompt" : None,
-                "model_output": None,
-                "check_function": None,
-                "canonical_solution": None,
-                "failure_type": None,
-                "func_input": None,
-            }
 
-            for task in tqdm(test_params, desc=f"Neighbourhood Task", position = 1):
+            for idx, task in tqdm(enumerate(test_params), desc=f"Neighbourhood Task", position = 1):
+                
+                # Dictionary storing all relevant log data
+                log_data_entry = {
+                    "task_id": f"{task_id}_{idx+1}",
+                    "prompt" : None,
+                    "model_output": None,
+                    "check_function": None,
+                    "canonical_solution": None,
+                    "func_input": None,
+                    "failure_type": None,
+                }
+
                 params = task['params']
                 func_input = task['func_input']
 
@@ -156,8 +158,13 @@ class TurbulenceTester(CodeGenerationTester):
                 input_variables = {"prompt" : log_data_entry["prompt"] }
                 
                 # Running the llm on the input variables and the prompt template
-                ans = self.execute_llm(input_variables = input_variables, prompt_template = "{prompt}", llm_model = llm, model_name=model_name)
-
+                try: 
+                    ans = self.execute_llm(input_variables = input_variables, prompt_template = "{prompt}", llm_model = llm, model_name=model_name)
+                
+                except Exception as e:
+                    log_data_entry["failure_type"] = (LLMExecutionRuntimeError.__name__, type(e))
+                    TurbulenceTester.log_into_csv(output_file_path = output_file_path, input_data = log_data_entry)
+                    continue
                 try: 
                     # Processing of the llm answer. Some llm answers are in Python code blocks, which needs to be processed as it will fail exec()
                     ans = TurbulenceTester.process_llm_ans(ans)
@@ -171,10 +178,7 @@ class TurbulenceTester(CodeGenerationTester):
                         log_data_entry["failure_type"] = ("could_not_parse_LLM_answer", type(e))
                         TurbulenceTester.log_into_csv(output_file_path = output_file_path, input_data = log_data_entry)
                         continue
-                except LLMExecutionRuntimeError:
-                    log_data_entry["failure_type"] = (LLMExecutionRuntimeError.__name__, type(e))
-                    TurbulenceTester.log_into_csv(output_file_path = output_file_path, input_data = log_data_entry)
-                    continue
+
 
                 log_data_entry['model_output'] = ans       # storing the answer in input_data dict
                 ## LLM Answer Test Execution    

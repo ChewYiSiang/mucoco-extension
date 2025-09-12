@@ -2,12 +2,19 @@ import pandas as pd
 from typing import Tuple, Any, List, Dict
 from database import MongoDBHelper
 from itertools import combinations
+from pymongo.mongo_client import MongoClient
+
 
 class TurbulenceLogHelper:
     def __init__(self):
         db_helper = MongoDBHelper()
         turbulence_db = db_helper.client["Baseline_Questions_DB"]["Turbulence_Benchmark"]
-        self.total_task = turbulence_db.count_documents({})
+        self.total_questions= turbulence_db.count_documents({})
+        self.total_tasks = 0
+
+        for idx in range(1,self.total_questions+1):
+            task_id = f"TurbulenceQ{idx}"
+            self.total_tasks += len(turbulence_db.find_one({"_id":task_id})['params'])
 
     def obtain_mucoco_code_inconsistency_score(self, log1: pd.DataFrame, log2: pd.DataFrame) -> Dict[str, int]:
         """
@@ -59,14 +66,17 @@ class TurbulenceLogHelper:
         both_failed = 0                 # tasks where both logs failed
         both_succeeded = 0              # tasks where both logs succeeded
 
-        print(f"Starting comparison of {self.total_task} tasks...")
+        print(f"Starting comparison of {self.total_questions} tasks...")
 
         ## Checking for inconsistencies between both logs
 
-        for idx in range(1, self.total_task+1):
+        for idx in range(1, self.total_questions+1):
             task_id = f"TurbulenceQ{idx}"
-            log1_task_qns = log1[log1['task_id'] == task_id].reset_index(drop=True)
-            log2_task_qns = log2[log2['task_id'] == task_id].reset_index(drop=True)
+            log1_task_qns = log1[log1['task_id'].str.contains(rf'^{task_id}(?=_|$)', regex=True)].reset_index(drop = True)
+            log2_task_qns = log2[log2['task_id'].str.contains(rf'^{task_id}(?=_|$)', regex=True)].reset_index(drop = True)
+
+            # log1_task_qns = log1[log1['task_id'] == task_id].reset_index(drop=True)
+            # log2_task_qns = log2[log2['task_id'] == task_id].reset_index(drop=True)
 
             if len(log1_task_qns) != len(log2_task_qns):
                 raise ValueError("Both logs do not have the same number of questions.")
@@ -105,7 +115,7 @@ class TurbulenceLogHelper:
         #         unmatched_ids.add(task["task_id"])
 
         print(f"\n=== COMPARISON SUMMARY ===")
-        print(f"Total tasks processed: {self.total_task}")
+        print(f"Total tasks processed: {self.total_questions}")
         print(f"Both succeeded: {both_succeeded}")
         print(f"Both failed: {both_failed}")
         print(f"Comparable tasks (atleast one succeeded): {tot}")
@@ -114,7 +124,12 @@ class TurbulenceLogHelper:
         total_inconsistencies = log1_inconsistencies + log2_inconsistencies
         print(f"Total inconsistencies: {total_inconsistencies}/{tot}")
 
-        return f"{log1_inconsistencies + log2_inconsistencies}/{tot}", round((log1_inconsistencies + log2_inconsistencies)*100/tot,2)
+        # return f"{log1_inconsistencies + log2_inconsistencies}/{tot}", round((log1_inconsistencies + log2_inconsistencies)*100/tot,2)
+        return {
+            "log1_inconsistencies" : log1_inconsistencies,
+            "log2_inconsistencies" : log2_inconsistencies,
+            "tot" : tot
+        }
     
     def obtain_turbulence_code_inconsistency_score(self, log: pd.DataFrame) -> Dict[str, float]:
         """
@@ -125,17 +140,20 @@ class TurbulenceLogHelper:
         inconsistency_count = 0
         total_comparisons = 0
 
-        for idx in range(1, self.total_task+1):
+        for idx in range(1, self.total_questions+1):
             task_id = f"TurbulenceQ{idx}"
-            log_task_qns = log[log['task_id'] == task_id].reset_index(drop=True)
-
+            log_task_qns = log[log['task_id'].str.contains(rf'^{task_id}(?=_|$)', regex=True)]
             for (_, row1), (_, row2) in combinations(log_task_qns.iterrows(), 2):
                 total_comparisons += 1
                 if str(row1['failure_type']).strip() != str(row2['failure_type']).strip():
-                    # print(task_id, row1['failure_type'], row2['failure_type'])
+                    # print(task_id, idx1, row1['failure_type'], idx2, row2['failure_type'])
                     inconsistency_count += 1
-                
-        return f"{inconsistency_count}/{total_comparisons}", f"{round(inconsistency_count*100/total_comparisons, 2)}"
+        
+        # return f"{inconsistency_count}/{total_comparisons}", f"{round(inconsistency_count*100/total_comparisons, 2)}"
+        return {
+            "inconsistency_count": inconsistency_count,
+            "total_comparisons": total_comparisons
+        }
 
     def obtain_question_inconsistency_count(self, log: pd.DataFrame) -> Dict[str, float]:
         """
@@ -152,9 +170,9 @@ class TurbulenceLogHelper:
         """
         inconsistent_qn_count = 0
 
-        for idx in range(1, self.total_task+1):
+        for idx in range(1, self.total_questions+1):
             task_id = f"TurbulenceQ{idx}"
-            log_task_qns = log[log['task_id'] == task_id].reset_index(drop=True)
+            log_task_qns = log[log['task_id'].str.contains(rf'^{task_id}(?=_|$)', regex=True)].reset_index(drop = True)
 
             consistency_type = None
             for task_idx in range(len(log_task_qns)):
@@ -167,5 +185,9 @@ class TurbulenceLogHelper:
                     # print(task_id, type(consistency_type), consistency_type, type(failure_type), failure_type)
                     inconsistent_qn_count += 1
                     break
-        
-        return f"{inconsistent_qn_count}/{self.total_task}", f"{round(inconsistent_qn_count*100/self.total_task, 2)}"
+                    
+        # return f"{inconsistent_qn_count}/{self.total_questions}", f"{round(inconsistent_qn_count*100/self.total_questions, 2)}"
+        return {
+            "inconsistent_qn_count": inconsistent_qn_count,
+            "total_questions": self.total_questions
+        }

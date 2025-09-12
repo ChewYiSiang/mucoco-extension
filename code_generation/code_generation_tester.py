@@ -6,6 +6,9 @@ from code_generation.prompt_templates.prompt_template import OpenEndedPromptTemp
 from typing import Callable, Dict, Any, List
 from tqdm import tqdm
 import os
+import io
+import matplotlib.pyplot as plt
+import contextlib
 import time
 import pandas as pd
 import multiprocessing
@@ -19,13 +22,18 @@ from llm_models.gpu_code_llms import TransformersCodeLLM
 
 
 def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: multiprocessing.Queue, llm_model : Callable, model_name : str):
+    f = io.StringIO()
+
     llm = llm_model(model_name)
-    ans = llm.invoke(input_variables=input_variables, prompt_template=prompt_template)
-    queue.put(ans)
+
+    with contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
+        ans = llm.invoke(input_variables=input_variables, prompt_template=prompt_template)
+        plt.close('all')
+        queue.put(ans)
 
 class Tester:
     def execute_llm(self, model_name: str, input_variables: Dict[str, str], prompt_template: str, llm_model : Callable = Mistral, ):
-        llm_timeout = 30
+        llm_timeout = 1
 
         if model_name == ReasoningModels.GPT4O_REASONING["name"]:
             model_name = NonReasoningModels.GPT4O['name']
@@ -53,7 +61,6 @@ class Tester:
 
         if not multiprocessing_queue.empty():
             ans = multiprocessing_queue.get()
-
             return ans
         else:
             raise LLMExecutionError(f"LLM did not return any answer")
@@ -130,7 +137,8 @@ class CodeGenerationTester(Tester):
             
         if task_set not in CodeGeneration.BENCHMARKS:
             raise ValueError(f"{task_set} is an invalid benchmark dataset for code generation. Only {CodeGeneration.BENCHMARKS} datasets are valid.")
-            
+        
+        # TODO: Needs an additional step checking if the given prompt_type is valid for the specific benchmark
 
         task_pass_count = 0             # int variable tracking the number of tasks that have passed
         failed_validity = []            # list storing the test case id that have failed the check functions
@@ -274,7 +282,12 @@ class CodeGenerationTester(Tester):
                     try: 
                         # Running the llm on the input variables and the prompt template
                         ans = self.execute_llm(input_variables = input_variables, prompt_template = prompt_template, llm_model = llm, model_name=model_name)
-
+                    except Exception as e:
+                        log_data_entry["failure_type"] = (LLMExecutionRuntimeError.__name__, type(e))
+                        CodeGenerationTester.log_into_csv(output_file_path = output_file_path, input_data = log_data_entry)
+                        continue
+                    
+                    try:
                         # Processing of the llm answer. Some llm answers are in Python code blocks, which needs to be processed as it will fail exec()
                         ans = CodeGenerationTester.process_llm_ans(ans)
                     
@@ -287,10 +300,7 @@ class CodeGenerationTester(Tester):
                             log_data_entry["failure_type"] = ("could_not_parse_LLM_answer", type(e))
                             CodeGenerationTester.log_into_csv(output_file_path = output_file_path, input_data = log_data_entry)
                             continue
-                    except LLMExecutionRuntimeError:
-                        log_data_entry["failure_type"] = (LLMExecutionRuntimeError.__name__, type(e))
-                        CodeGenerationTester.log_into_csv(output_file_path = output_file_path, input_data = log_data_entry)
-                        continue
+                    
 
                 log_data_entry['model_output'] = ans       # storing the answer in input_data dict
                 ## LLM Answer Test Execution
