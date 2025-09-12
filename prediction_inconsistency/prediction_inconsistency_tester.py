@@ -25,10 +25,97 @@ class LLMConsistencyTester(CodeGenerationTester):
         super().__init__(qn_database=qn_database, base_db= base_db, n=n)
 
     def process_llm_ans(prog: str) -> Any:
+        
+        # First try the original approach - direct parsing
         try:
             return ast.literal_eval(prog)
         except Exception:
-            return prog.strip('"').strip("'") if isinstance(prog, str) else prog
+            pass
+        
+        # Enhanced parsing for natural language responses
+        if isinstance(prog, str):
+            # Extract the actual answer from natural language
+            processed_answer = LLMConsistencyTester._extract_answer_from_natural_language(prog)
+            
+            if processed_answer is not None:
+                return processed_answer
+            
+            # Fallback to original behavior
+            return prog.strip('"').strip("'")
+        
+        return prog
+    
+    @staticmethod
+    def _extract_answer_from_natural_language(text: str) -> Any:
+        """Extract structured answers from natural language LLM responses."""
+        import re
+        import ast
+        
+        # Clean the text
+        text = text.strip()
+        
+        # Pattern 1: Extract list/tuple patterns like [(3, 1), (2, 3), (1, 4)]
+        # Look for the first occurrence (LLM's actual answer, not corrections)
+        list_pattern = r'\[(?:\([^)]+\),?\s*)+\]'
+        list_match = re.search(list_pattern, text)
+        
+        if list_match:
+            try:
+                # Try to evaluate the matched list
+                parsed_list = ast.literal_eval(list_match.group())
+                # Determine metadata type
+                metadata = LLMConsistencyTester._infer_metadata_type(parsed_list)
+                return {'args': str(parsed_list), 'metadata': metadata}
+            except:
+                pass
+        
+        # Pattern 2: Extract simple values (True/False, numbers, strings)
+        # Look for boolean values
+        bool_pattern = r'\b(True|False)\b'
+        bool_match = re.search(bool_pattern, text, re.IGNORECASE)
+        if bool_match:
+            bool_val = bool_match.group(1).lower() == 'true'
+            return {'args': str(bool_val), 'metadata': 'bool'}
+        
+        # Pattern 3: Extract numbers
+        num_pattern = r'\b(-?\d+(?:\.\d+)?)\b'
+        num_match = re.search(num_pattern, text)
+        if num_match:
+            try:
+                num = float(num_match.group()) if '.' in num_match.group() else int(num_match.group())
+                metadata = 'float' if isinstance(num, float) else 'int'
+                return {'args': str(num), 'metadata': metadata}
+            except:
+                pass
+        
+        # Pattern 4: Extract string patterns (quoted strings)
+        string_pattern = r"'([^']*)'|\"([^\"]*)\""
+        string_match = re.search(string_pattern, text)
+        if string_match:
+            string_val = string_match.group(1) or string_match.group(2)
+            return {'args': f"'{string_val}'", 'metadata': 'str'}
+        
+        return None
+    
+    @staticmethod 
+    def _infer_metadata_type(value) -> str:
+        """Infer the metadata type from a parsed value."""
+        if isinstance(value, bool):
+            return 'bool'
+        elif isinstance(value, int):
+            return 'int'
+        elif isinstance(value, float):
+            return 'float'
+        elif isinstance(value, str):
+            return 'str'
+        elif isinstance(value, list):
+            return 'list'
+        elif isinstance(value, tuple):
+            return 'tuple'
+        elif isinstance(value, dict):
+            return 'dict'
+        else:
+            return 'unknown'
 
     def run_code_consistency_test(
             self,
