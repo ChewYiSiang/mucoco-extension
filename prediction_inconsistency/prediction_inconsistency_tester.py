@@ -73,6 +73,7 @@ class LLMConsistencyTester(CodeGenerationTester):
         task_pass_count = 0             # int variable tracking the number of tasks that have passed
         failed_validity = []            # list storing the test case id that have failed the check functions
         using_GPU = True if (torch.cuda.is_available() or LLMConsistencyTester.is_colab()) else False
+
         if using_GPU:
             if task_type == Tasks.OutputPrediction.NAME:
                 answers = self.question_database.find({}, { "_id": 0, "output": 1 })
@@ -234,6 +235,8 @@ class LLMConsistencyTester(CodeGenerationTester):
                         )
                     except Exception as e:
                         log_entry['failure_type'] = f"{type(e).__name__} > {e}"
+                        LLMConsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
+                        continue
 
                     ans = LLMConsistencyTester.process_llm_ans(ans)
                 

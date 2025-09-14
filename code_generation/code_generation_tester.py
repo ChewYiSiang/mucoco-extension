@@ -33,7 +33,7 @@ def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: mul
 
 class Tester:
     def execute_llm(self, model_name: str, input_variables: Dict[str, str], prompt_template: str, llm_model : Callable = Mistral, ):
-        llm_timeout = 1
+        llm_timeout = 30
 
         if model_name == ReasoningModels.GPT4O_REASONING["name"]:
             model_name = NonReasoningModels.GPT4O['name']
@@ -283,7 +283,7 @@ class CodeGenerationTester(Tester):
                         # Running the llm on the input variables and the prompt template
                         ans = self.execute_llm(input_variables = input_variables, prompt_template = prompt_template, llm_model = llm, model_name=model_name)
                     except Exception as e:
-                        log_data_entry["failure_type"] = (LLMExecutionRuntimeError.__name__, type(e))
+                        log_data_entry["failure_type"] = (LLMExecutionRuntimeError.__name__ > e)
                         CodeGenerationTester.log_into_csv(output_file_path = output_file_path, input_data = log_data_entry)
                         continue
                     
