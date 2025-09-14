@@ -1,6 +1,7 @@
 from typing import Callable
 from llm_models.code_llms import Mistral
 from llm_models.code_reasoning_llms import OpenAIReasoningLLM
+from llm_models.gpu_code_llms import TransformersCodeLLM
 
 class PromptTypes:
     ZERO_SHOT = 'zero_shot'
@@ -90,6 +91,8 @@ class LLMModels:
     
     class NonReasoningModels:
         MISTRAL_SMALL_LATEST = {"name": "mistral-small-latest", "model_class": Mistral}
+        LLAMA_3_1_8B = {"name": "meta-llama/Llama-3.1-8B-Instruct", "model_class": TransformersCodeLLM}
+        LLAMA_3_1_70B = {"name": "meta-llama/Llama-3.1-70B-Instruct", "model_class": TransformersCodeLLM}
 
 
 ReasoningModels = LLMModels.ReasoningModels
