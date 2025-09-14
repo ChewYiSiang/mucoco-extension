@@ -179,7 +179,9 @@ class LLMConsistencyTester(CodeGenerationTester):
                         "full_sol": full_sol,
                         "qn_desc": qn_desc,
                         "examples": examples,
-                    })
+                    },
+                    benchmark_set=task_set
+                )
                 
                 ## Handling Task Mutation (If any)
                 try: 

@@ -30,17 +30,22 @@ class ASTNodeHelper:
 
     class ForLoopDetectorNodeVisitor(ast.NodeVisitor):
         """
-        This NodeVisitor class is used to determine if a valid for loop exisits in the input program.
+        This NodeVisitor class is used to determine if a valid for loop exists in the input program.
 
         Note:
             [x for x in list] is not considered a valid for loop. Only traditional for x in list: ... are considered for loops valid for mutation.
         """
 
         def __init__(self):
-            self.for_loop_exisits = False
+            self.for_loop_exists = False
+            self.enumerator_iterator = False
 
-        def visit_For(self, node):
-            self.for_loop_exisits = True
+        def visit_For(self, node: ast.For):
+            self.for_loop_exists = True
+
+            if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == "enumerate":
+                self.enumerator_iterator = True
+
 
 
     class VariableTypeMapperNodeVisitor(ast.NodeVisitor):

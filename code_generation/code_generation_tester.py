@@ -238,7 +238,8 @@ class CodeGenerationTester(Tester):
                         'examples' : examples,
                         'check_function' : test_function,
                         'full_sol' : complete_soln
-                    }
+                    },
+                    benchmark_set=task_set
                 )
 
                 for mutation in mutations:
