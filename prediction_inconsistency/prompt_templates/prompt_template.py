@@ -12,6 +12,21 @@ class PredictionInconsistencyPromptTemplate:
             raise ValueError(f"{task_type} is an invalid task type. Only {InputPrediction.NAME} and {OutputPrediction.NAME} are valid.")
     
     @staticmethod
+    def structure_few_shot_examples(test_cases: dict) -> str:
+        """Structure examples for few shot prompts."""
+        examples = []
+        for input_case, expected_output in test_cases.items():
+            examples.append(f"Input: {input_case}\nOutput: {expected_output}")
+        return "\n\n".join(examples)
+    
+    @staticmethod
+    def structure_one_shot_example(test_case: dict) -> str:
+        """Structure example for one shot prompts."""
+        for input_case, expected_output in test_case.items():
+            return f"Input: {input_case}\nOutput: {expected_output}"
+        return ""
+    
+    @staticmethod
     def return_appropriate_llama_prompt(task_type: str, prompt_type: str):
         """Return Llama-specific prompts with proper chat template format."""
         if task_type == OutputPrediction.NAME:
@@ -250,7 +265,7 @@ class LlamaPredictionInconsistencyPromptTemplate:
                 {test_input}
 
                 # Examples
-                {examples}
+                {example}
 
                 What is the expected output when this code runs with the given input?<|eot_id|><|start_header_id|>assistant<|end_header_id|>
 
