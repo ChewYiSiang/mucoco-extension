@@ -23,7 +23,7 @@ def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: mul
 class LLMConsistencyTester(CodeGenerationTester):
     def __init__(self, qn_database: str = "HumanEval_Input_Output", base_db : str = "Base_Questions_DB", n: int = 2):
         super().__init__(qn_database=qn_database, base_db= base_db, n=n)
-
+    
     def process_llm_ans(prog: str) -> Any:
         try:
             return ast.literal_eval(prog)

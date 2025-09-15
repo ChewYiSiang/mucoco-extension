@@ -42,6 +42,78 @@ class ASTNodeHelper:
         def visit_For(self, node):
             self.for_loop_exisits = True
 
+    class BooleanOperationDetectorNodeVisitor(ast.NodeVisitor):
+        """
+        This NodeVisitor class is used to determine if valid boolean operations exist in the input program
+        that can be mutated with DeMorgan's laws.
+
+        Detects:
+            - BoolOp nodes (and/or operations)
+            - UnaryOp with Not applied to boolean operations
+        """
+
+        def __init__(self):
+            self.boolean_operation_exists = False
+
+        def visit_BoolOp(self, node):
+            if isinstance(node.op, (ast.And, ast.Or)):
+                self.boolean_operation_exists = True
+            self.generic_visit(node)
+
+        def visit_UnaryOp(self, node):
+            if isinstance(node.op, ast.Not) and isinstance(node.operand, ast.BoolOp):
+                self.boolean_operation_exists = True
+            self.generic_visit(node)
+
+    class BooleanLiteralDetectorNodeVisitor(ast.NodeVisitor):
+        """
+        This NodeVisitor class is used to determine if boolean literals exist in the input program
+        that can be transformed (True/False values).
+
+        Detects:
+            - Constant nodes with boolean values (True, False)
+        """
+
+        def __init__(self):
+            self.boolean_literal_exists = False
+
+        def visit_Constant(self, node):
+            if isinstance(node.value, bool):
+                self.boolean_literal_exists = True
+
+    class CommutativeOperationDetectorNodeVisitor(ast.NodeVisitor):
+        """
+        This NodeVisitor class is used to determine if commutative operations exist in the input program
+        that can be reordered (addition, multiplication).
+
+        Detects:
+            - BinOp nodes with commutative operations (Add, Mult)
+        """
+
+        def __init__(self):
+            self.commutative_operation_exists = False
+
+        def visit_BinOp(self, node):
+            if isinstance(node.op, (ast.Add, ast.Mult)):
+                self.commutative_operation_exists = True
+                return # early return if + or * detected
+
+    class ConstantUnfoldDetectorNodeVisitor(ast.NodeVisitor):
+        """
+        This NodeVisitor class is used to determine if integer constants exist in the input program
+        that can be unfolded into expressions (e.g., 10 -> 5 + 5).
+
+        Detects:
+            - Constant nodes with integer values greater than 1
+        """
+
+        def __init__(self):
+            self.constant_unfold_exists = False
+
+        def visit_Constant(self, node):
+            if isinstance(node.value, int) and node.value > 1:
+                self.constant_unfold_exists = True
+
 
     class VariableTypeMapperNodeVisitor(ast.NodeVisitor):
         """
@@ -809,30 +881,63 @@ class ASTNodeHelper:
         @staticmethod
         def _unfold_addition(value):
             """Unfold using addition: n -> a + b where a + b = n"""
-            half = value // 2
-            remainder = value - half
-            return ast.BinOp(
-                left=ast.Constant(value=half),
-                op=ast.Add(),
-                right=ast.Constant(value=remainder)
-            )
+            # Handle special cases for small numbers
+            if value == 0:
+                return ast.BinOp(
+                    left=ast.Constant(value=0),
+                    op=ast.Add(),
+                    right=ast.Constant(value=0)
+                )
+            elif value == 1:
+                return ast.BinOp(
+                    left=ast.Constant(value=0),
+                    op=ast.Add(),
+                    right=ast.Constant(value=1)
+                )
+            elif value == -1:
+                return ast.BinOp(
+                    left=ast.Constant(value=0),
+                    op=ast.Add(),
+                    right=ast.Constant(value=-1)
+                )
+            else:
+                # General case: split number in half
+                half = value // 2
+                remainder = value - half
+                return ast.BinOp(
+                    left=ast.Constant(value=half),
+                    op=ast.Add(),
+                    right=ast.Constant(value=remainder)
+                )
         
         @staticmethod
         def _unfold_multiplication(value):
             """Unfold using multiplication: n -> a * b where a * b = n"""
-            if value <= 3:
-                return None  # Too small for meaningful factorization
             
-            # Find factors for multiplication
-            for factor in range(2, min(value, 10)):
-                if value % factor == 0:
-                    other_factor = value // factor
-                    return ast.BinOp(
-                        left=ast.Constant(value=factor),
-                        op=ast.Mult(),
-                        right=ast.Constant(value=other_factor)
-                    )
-            return None  # No factors found
+            # Handle factorization for positive values
+            abs_value = abs(value)
+            if abs_value >= 2:
+                # Find factors for multiplication
+                for factor in range(2, min(abs_value, 10)):
+                    if abs_value % factor == 0:
+                        other_factor = abs_value // factor
+                        
+                        # For negative numbers, make the first factor negative
+                        if value < 0:
+                            factor = -factor
+                        
+                        return ast.BinOp(
+                            left=ast.Constant(value=factor),
+                            op=ast.Mult(),
+                            right=ast.Constant(value=other_factor)
+                        )
+            
+            # If no factors found or small number, multiply by 1
+            return ast.BinOp(
+                left=ast.Constant(value=value),
+                op=ast.Mult(),
+                right=ast.Constant(value=1)
+            )
         
         def visit_Constant(self, node):
             self.generic_visit(node)
@@ -857,43 +962,77 @@ class ASTNodeHelper:
     class ConstantUnfoldAddTransformer(ast.NodeTransformer):
         """
         Unfold constant expressions using addition only.
-        E.g., 10 ↔ 5 + 5, 7 ↔ 3 + 4
+        E.g., 10 → 5 + 5, 7 → 3 + 4, 1 → 0 + 1, 0 → 0 + 0
         """
         def visit_Constant(self, node):
             self.generic_visit(node)
             
-            if isinstance(node.value, int) and node.value > 1:
-                # Always use addition
-                half = node.value // 2
-                remainder = node.value - half
-                return ast.BinOp(
-                    left=ast.Constant(value=half),
-                    op=ast.Add(),
-                    right=ast.Constant(value=remainder)
-                )
+            if isinstance(node.value, int):
+                # Handle special cases for small numbers
+                if node.value == 0:
+                    return ast.BinOp(
+                        left=ast.Constant(value=0),
+                        op=ast.Add(),
+                        right=ast.Constant(value=0)
+                    )
+                elif node.value == 1:
+                    return ast.BinOp(
+                        left=ast.Constant(value=0),
+                        op=ast.Add(),
+                        right=ast.Constant(value=1)
+                    )
+                elif node.value == -1:
+                    return ast.BinOp(
+                        left=ast.Constant(value=0),
+                        op=ast.Add(),
+                        right=ast.Constant(value=-1)
+                    )
+                else:
+                    # General case: split number in half
+                    half = node.value // 2
+                    remainder = node.value - half
+                    return ast.BinOp(
+                        left=ast.Constant(value=half),
+                        op=ast.Add(),
+                        right=ast.Constant(value=remainder)
+                    )
             
             return node
     
     class ConstantUnfoldMultTransformer(ast.NodeTransformer):
         """
         Unfold constant expressions using multiplication only.
-        Only transforms if factorization is possible.
-        E.g., 10 ↔ 2 * 5, 6 ↔ 2 * 3 (but 7 stays as 7)
+        Tries factorization first, fallback to multiplication by 1 for primes.
+        E.g., 10 → 2 * 5, 6 → 2 * 3, 7 → 7 * 1, 1 → 1 * 1
         """
         def visit_Constant(self, node):
             self.generic_visit(node)
             
-            if isinstance(node.value, int) and node.value > 3:
-                # Find factors for multiplication
-                for factor in range(2, min(node.value, 10)):
-                    if node.value % factor == 0:
-                        other_factor = node.value // factor
-                        return ast.BinOp(
-                            left=ast.Constant(value=factor),
-                            op=ast.Mult(),
-                            right=ast.Constant(value=other_factor)
-                        )
-                # If no factors found, don't transform
+            if isinstance(node.value, int):
+                # Handle factorization for positive values
+                abs_value = abs(node.value)
+                if abs_value >= 2:
+                    # First try to find factors for meaningful factorization
+                    for factor in range(2, min(abs_value, 10)):
+                        if abs_value % factor == 0:
+                            other_factor = abs_value // factor
+                            
+                            # For negative numbers, make the first factor negative
+                            if node.value < 0:
+                                factor = -factor
+                            
+                            return ast.BinOp(
+                                left=ast.Constant(value=factor),
+                                op=ast.Mult(),
+                                right=ast.Constant(value=other_factor)
+                            )
+                
+                # If no factors found or small number, multiply by 1
+                return ast.BinOp(
+                    left=ast.Constant(value=node.value),
+                    op=ast.Mult(),
+                    right=ast.Constant(value=1)
+                )
 
             
             return node
