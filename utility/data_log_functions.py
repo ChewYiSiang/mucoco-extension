@@ -83,6 +83,7 @@ class DataLogHelper:
             log1_result = log1_data['failure_type']
             log2_result = log2_data['failure_type']
 
+
             if (isinstance(log1_result, float) and (isinstance(log2_result, str) and AssertionError.__name__ in log2_result)) or (
                 isinstance(log2_result, float) and (isinstance(log1_result, str) and AssertionError.__name__ in log1_result)) or (
                 isinstance(log1_result, float) and isinstance(log2_result, float)):

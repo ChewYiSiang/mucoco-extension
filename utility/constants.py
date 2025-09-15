@@ -1,5 +1,5 @@
 from typing import Callable
-from llm_models.code_llms import Mistral
+from llm_models.code_llms import Mistral, OpenAILLM
 from llm_models.code_reasoning_llms import OpenAIReasoningLLM
 from llm_models.gpu_code_llms import TransformersCodeLLM
 
@@ -46,21 +46,25 @@ class Benchmarks:
     class CruxEval:
         NAME = "CruxEval"
 
+    class Turbulence:
+        NAME = "Turbulence"
+
 CodeMMLU = Benchmarks.CodeMMLU
 HumanEval = Benchmarks.HumanEval
 BigCodeBench = Benchmarks.BigCodeBench
 CruxEval = Benchmarks.CruxEval
+Turbulence = Benchmarks.Turbulence
 
 class Tasks:
     class CodeGeneration:
         NAME = "code_generation"
-        BENCHMARKS = (Benchmarks.HumanEval.NAME, Benchmarks.BigCodeBench.NAME)
+        BENCHMARKS = (HumanEval.NAME, BigCodeBench.NAME, Turbulence.NAME)
         MUTATIONS = [getattr(LexicalMutations, m) for m in dir(LexicalMutations) if not m.startswith("__")]
             
 
     class MCQInconsistency:
         NAME = "mcq_inconsistency"
-        BENCHMARKS = (Benchmarks.CodeMMLU.NAME,)
+        BENCHMARKS = (CodeMMLU.NAME,)
         MUTATIONS = [
             getattr(SyntacticMutations, m) for m in dir(SyntacticMutations) if not m.startswith("__")] + [
             getattr(LogicalMutations, m) for m in dir(LogicalMutations) if not m.startswith("__")] + [
@@ -69,7 +73,7 @@ class Tasks:
         
     class OutputPrediction:
         NAME = "output_prediction"
-        BENCHMARKS = (Benchmarks.HumanEval.NAME, Benchmarks.CruxEval.NAME)
+        BENCHMARKS = (HumanEval.NAME, CruxEval.NAME)
         MUTATIONS = [
             getattr(SyntacticMutations, m) for m in dir(SyntacticMutations) if not m.startswith("__")] + [
             getattr(LogicalMutations, m) for m in dir(LogicalMutations) if not m.startswith("__")] + [
@@ -87,13 +91,18 @@ InputPrediction = Tasks.InputPrediction
 class LLMModels:
     class ReasoningModels:
         GPT5 = {"name": "gpt-5", "model_class": OpenAIReasoningLLM}
-        GPT4O = {"name": "gpt-4o", "model_class": OpenAIReasoningLLM}
+        GPT4O_REASONING = {"name": "gpt-4o-reasoning", "model_class": OpenAIReasoningLLM}
     
     class NonReasoningModels:
         MISTRAL_SMALL_LATEST = {"name": "mistral-small-latest", "model_class": Mistral}
+        GPT4O = {"name": "gpt-4o", "model_class": OpenAILLM}
         LLAMA_3_1_8B = {"name": "meta-llama/Llama-3.1-8B-Instruct", "model_class": TransformersCodeLLM}
         LLAMA_3_1_70B = {"name": "meta-llama/Llama-3.1-70B-Instruct", "model_class": TransformersCodeLLM}
 
 
 ReasoningModels = LLMModels.ReasoningModels
 NonReasoningModels = LLMModels.NonReasoningModels
+
+class SamplingMethods:
+    SYSTEMATIC = "systematic"
+    RANDOM = 'random'

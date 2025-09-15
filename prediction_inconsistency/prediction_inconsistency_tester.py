@@ -47,9 +47,9 @@ class LLMConsistencyTester(CodeGenerationTester):
         llm_timeout = 20
 
         if prompt_type == PromptTypes.ONE_SHOT:
-            example_helper= PredictionInconsistencyPromptTemplate.structure_one_shot_example
+            example_helper= PredictionInconsistencyPromptTemplate.InputPrediction.structure_one_shot_example
         elif prompt_type == PromptTypes.FEW_SHOT:
-            example_helper = PredictionInconsistencyPromptTemplate.structure_few_shot_examples
+            example_helper = PredictionInconsistencyPromptTemplate.InputPrediction.structure_few_shot_examples
         else:
             example_helper = None
 
@@ -73,6 +73,7 @@ class LLMConsistencyTester(CodeGenerationTester):
         task_pass_count = 0             # int variable tracking the number of tasks that have passed
         failed_validity = []            # list storing the test case id that have failed the check functions
         using_GPU = True if (torch.cuda.is_available() or LLMConsistencyTester.is_colab()) else False
+
         if using_GPU:
             if task_type == Tasks.OutputPrediction.NAME:
                 answers = self.question_database.find({}, { "_id": 0, "output": 1 })
@@ -178,7 +179,9 @@ class LLMConsistencyTester(CodeGenerationTester):
                         "full_sol": full_sol,
                         "qn_desc": qn_desc,
                         "examples": examples,
-                    })
+                    },
+                    benchmark_set=task_set
+                )
                 
                 ## Handling Task Mutation (If any)
                 try: 
@@ -229,10 +232,13 @@ class LLMConsistencyTester(CodeGenerationTester):
                         ans = self.execute_llm(
                             input_variables=input_variables,
                             prompt_template=prompt_template,
-                            llm_model=llm
+                            llm_model=llm,
+                            model_name=model_name
                         )
                     except Exception as e:
                         log_entry['failure_type'] = f"{type(e).__name__} > {e}"
+                        LLMConsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
+                        continue
 
                     ans = LLMConsistencyTester.process_llm_ans(ans)
                 
