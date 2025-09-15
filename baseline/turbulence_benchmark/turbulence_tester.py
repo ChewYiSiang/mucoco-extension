@@ -1,12 +1,13 @@
 from baseline.turbulence_benchmark.utility.helper_functions import TurbulenceBenchmarkHelper
 from code_generation.code_generation_tester import CodeGenerationTester, LLMExecutionRuntimeError
 from typing import List, Callable
-from utility.constants import CodeGeneration, ReasoningModels, NonReasoningModels, LexicalMutations, SamplingMethods
+from utility.constants import CodeGeneration, ReasoningModels, NonReasoningModels, LexicalMutations, SamplingMethods, Turbulence
 from code_mutation.mutation_relations import check_for_mutation_conflicts
 from tqdm import tqdm
 import time
 import random
 from code_mutation.mutation_functions import CodeMutator
+
 
 class TurbulenceTester(CodeGenerationTester):
     def run_code_generation_test(
@@ -141,13 +142,14 @@ class TurbulenceTester(CodeGenerationTester):
                         'qn_desc': prompt,
                         'check_function' : tests,
                         'full_sol' : solution
-                    }
+                    },
+                    benchmark_set=Turbulence.NAME
                 )
 
                 for mutation in mutations:
                     codemutator.mutate_for_code_generation(
                         mutation_type=mutation,
-                        task_set="Turbulence"
+                        task_set=Turbulence.NAME
                     )
                     func_name = codemutator.func_name
 

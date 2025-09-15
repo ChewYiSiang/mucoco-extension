@@ -1,6 +1,6 @@
 from mcq_inconsistency.utility.codemmlu_helper import CodeGenerationCodeMMLUHelper
 from code_generation.code_generation_tester import CodeGenerationTester
-from code_mutation.mutation_functions import CodeMutator
+from code_mutation.mutation_functions import CodeMutator, InvalidIteratorError, NoForLoopError
 from utility.constants import PromptTypes, Tasks, MCQInconsistency, CodeMMLU, NonReasoningModels, ReasoningModels
 from typing import Callable, Dict, Any, List
 from tqdm import tqdm
@@ -89,7 +89,6 @@ class LLMMCQInconsistencyTester(CodeGenerationTester):
             for model in all_local_models:
                 if model['name'] == model_name:
                     llm = model['model_class']
-                    print(llm)
                     break
             else:
                 valid_model_names = [model['name'] for model in all_local_models]
@@ -164,7 +163,8 @@ class LLMMCQInconsistencyTester(CodeGenerationTester):
                         'qn_desc': qn_desc,
                         'examples': examples,
                         'check_function': check_function
-                    }
+                    },
+                    benchmark_set = task_set
                 )
 
                 codemutator.correct_ans_idx = answer
@@ -180,7 +180,10 @@ class LLMMCQInconsistencyTester(CodeGenerationTester):
                         )
 
                 except Exception as e:
-                    log_entry['failure_type'] = MutationFailedError(e)
+                    if isinstance(e, (InvalidIteratorError, NoForLoopError)):
+                        log_entry['failure_type'] = f"{type(e).__name__} > {e}"
+                    else:
+                        log_entry['failure_type'] = MutationFailedError(e)
                     LLMMCQInconsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
                     continue
 

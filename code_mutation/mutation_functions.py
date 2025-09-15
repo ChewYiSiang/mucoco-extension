@@ -7,6 +7,7 @@ import string
 import re
 from code_mutation.ast_mutation import ASTNodeHelper
 from prediction_inconsistency.utility.humaneval_helper import PredictionInconsistencyHumanEvalHelper
+from prediction_inconsistency.utility.cruxeval_helper import PredictionInconsistencyCruxEvalHelper
 from mcq_inconsistency.utility.codemmlu_helper import CodeGenerationCodeMMLUHelper
 
 from utility.constants import Mutations, CodeMMLU, MCQInconsistency, CodeGeneration, Benchmarks
@@ -54,9 +55,10 @@ def run_llm_answer(mutated_sol: str, expected_output: Any, func_name: str, mp_qu
 
 class CodeMutator:
     # Main class for applying various types of code mutations while preserving functionality.
-    def __init__(self, func_name: str, mutated_dict: Dict[str, Any]):
+    def __init__(self, func_name: str, mutated_dict: Dict[str, Any], benchmark_set: str):
         self.func_name = func_name
         self.mutated_dict = mutated_dict
+        self.benchmark_set = benchmark_set
 
     @classmethod
     def code_masking(original_code : str, mask_type : List[str] = ["var"]) -> str:
@@ -223,9 +225,6 @@ class CodeMutator:
         # integer indicating the number of seconds that the program should finish running in
         timeout = 10
 
-        # boolean value indicating if a "pass" statement was added at the end of a code block
-        contains_pass = False
-
         ## Checking the validity of the task_type input
         # If statement checking if the task_type is equal to the code_completion string
         if task_type == CodeMMLU.Tasks.CODE_COMPLETION:
@@ -254,11 +253,16 @@ class CodeMutator:
         ## Checking for any valid for loops before syntactic mutations
         if mutation_type in (FOR2WHILE, FOR2ENUMERATE):
             for_loop_checker = ASTNodeHelper.ForLoopDetectorNodeVisitor()
+            
             for_loop_checker.visit(tree)
-            for_loop_exists = for_loop_checker.for_loop_exisits
+            for_loop_exists = for_loop_checker.for_loop_exists
+            enumerate_iterator_exists = for_loop_checker.enumerator_iterator
 
             if for_loop_exists == False:
                 raise NoForLoopError()
+            
+            elif mutation_type == FOR2ENUMERATE and enumerate_iterator_exists == True:
+                raise InvalidIteratorError(mutation_type=mutation_type)
 
         ## Checking for any valid boolean operations before DeMorgan mutations
         if mutation_type == DEMORGAN:
@@ -314,7 +318,7 @@ class CodeMutator:
 
         ## Checking if the mutated solution is identical to the original solution
         try:
-            if mutation_type in (FOR2ENUMERATE, FOR2WHILE, DEMORGAN):
+            if mutation_type in (FOR2ENUMERATE, FOR2WHILE, DEMORGAN, LITERAL_FORMAT):
                 assert CodeMutator.standardize_program(mutated_sol) != CodeMutator.standardize_program(sanitised_question)
         except:
             raise IdenticalMutationError(mutation_type=mutation_type)
@@ -366,7 +370,7 @@ class CodeMutator:
                     if task_set in (HUMANEVAL, CODEMMLU):
                         input_metadata = PredictionInconsistencyHumanEvalHelper.extract_input_metadata(examples = examples, qn = full_sol)
                     elif task_set in (CRUXEVAL, ):
-                        input_metadata = PredictionInconsistencyHumanEvalHelper.extract_input_metadata(prog=full_sol, test_input=input_args)
+                        input_metadata = PredictionInconsistencyCruxEvalHelper.extract_input_metadata(prog=full_sol, test_input=input_args)
                     variable_metadata = CodeMutator.obtain_variable_types(tree, input_metadata)
                     merged_metadata = input_metadata | variable_metadata
                     mutated_sol = CodeMutator.mutate_for_to_while(tree = tree, input_metadata=merged_metadata)  
@@ -383,9 +387,6 @@ class CodeMutator:
                 
                 if mutation_type == DEMORGAN:
                     mutated_sol = CodeMutator.mutate_demorgan(tree = tree)
-
-                elif mutation_type == LITERAL_FORMAT:
-                    mutated_sol = CodeMutator.mutate_literal_format(tree = tree)
                     
                 elif mutation_type == BOOLEAN_LITERAL:
                     mutated_sol = CodeMutator.mutate_boolean_literal(tree = tree)
@@ -412,6 +413,8 @@ class CodeMutator:
                         mutation_type=mutation_type,
                         var_names=var_names if task_set != TURBULENCE else None,
                     )
+                elif mutation_type == LITERAL_FORMAT:
+                    mutated_sol = CodeMutator.mutate_literal_format(tree = tree)
 
             else:
                 print("Error at handle_mutation()")
@@ -447,11 +450,16 @@ class CodeMutator:
         # Pre condition check that checks if a valid for loop exists
         if mutation_type in (FOR2WHILE, FOR2ENUMERATE):
             for_loop_checker = ASTNodeHelper.ForLoopDetectorNodeVisitor()
+
             for_loop_checker.visit(tree)
-            for_loop_exists = for_loop_checker.for_loop_exisits
+            for_loop_exists = for_loop_checker.for_loop_exists
+            enumerate_iterator_exists = for_loop_checker.enumerator_iterator
 
             if for_loop_exists == False:
                 raise NoForLoopError()
+            
+            if mutation_type == FOR2ENUMERATE and enumerate_iterator_exists == True:
+                raise InvalidIteratorError(mutation_type=mutation_type)
         
         # Pre condition check that checks if valid boolean operations exist
         if mutation_type == DEMORGAN:
@@ -515,7 +523,7 @@ class CodeMutator:
 
         except Exception as e:
             print(f"DEBUG: Mutation check failed with error: {type(e).__name__}: {e}")
-            raise MutationCheckFailedError()
+            raise MutationCheckFailedError(e)
     
     @staticmethod
     def obtain_variable_types(tree: ast.AST, metadata_map: Dict[str, str]) -> Dict[str, str]: 
@@ -663,7 +671,7 @@ class CodeMutator:
             self.mutated_dict['choices'] = choices
         
         # 7) Applying the mutation onto the check_function
-        if check_function is not None:
+        if check_function is not None and self.benchmark_set not in (HUMANEVAL, CODEMMLU):
             for name in rename_map:
                 pattern = r'\b{}\b'.format(re.escape(name))  # safe + whole word
                 check_function = re.sub(pattern, rename_map[name], check_function)
@@ -742,13 +750,14 @@ class CodeMutator:
         Change formatting of string literals while keeping values the same.
         'hello' ↔ "hello"
         """
-        try:
-            mutated_source = ASTNodeHelper.LiteralFormatTransformer().visit(tree)
-        except Exception as e:
-            raise MutationFailedError(error=e)
+        ast.fix_missing_locations(tree)
+        original_source = ast.unparse(tree)
+
+        def swap_quotes(match):
+            char = match.group(0)
+            return "'" if char == '"' else '"'
         
-        ast.fix_missing_locations(mutated_source)
-        mutated_code = ast.unparse(mutated_source)
+        mutated_code = re.sub(r'["\']', swap_quotes, original_source)
         return mutated_code
     
     @staticmethod
@@ -883,6 +892,9 @@ class NoConstantUnfoldError(Exception):
     """Raised when no constants to unfold are in the given program"""
     def __init__(self):
         super().__init__("No constants to unfold in the given program")
+class InvalidIteratorError(Exception):
+    def __init__(self, mutation_type):
+        super().__init__(f"Invalid Iterator for {mutation_type}.")
 
 if __name__ == "__main__":
     print(f"Invalid mutation type was used. The available mutation types are {', '.join(CodeMutator.mutation_types)}")
