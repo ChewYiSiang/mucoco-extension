@@ -7,6 +7,7 @@ import string
 import re
 from code_mutation.ast_mutation import ASTNodeHelper
 from prediction_inconsistency.utility.humaneval_helper import PredictionInconsistencyHumanEvalHelper
+from prediction_inconsistency.utility.cruxeval_helper import PredictionInconsistencyCruxEvalHelper
 from mcq_inconsistency.utility.codemmlu_helper import CodeGenerationCodeMMLUHelper
 
 from utility.constants import Mutations, CodeMMLU, MCQInconsistency, CodeGeneration, Benchmarks
@@ -337,7 +338,7 @@ class CodeMutator:
                     if task_set in (HUMANEVAL, CODEMMLU):
                         input_metadata = PredictionInconsistencyHumanEvalHelper.extract_input_metadata(examples = examples, qn = full_sol)
                     elif task_set in (CRUXEVAL, ):
-                        input_metadata = PredictionInconsistencyHumanEvalHelper.extract_input_metadata(prog=full_sol, test_input=input_args)
+                        input_metadata = PredictionInconsistencyCruxEvalHelper.extract_input_metadata(prog=full_sol, test_input=input_args)
                     variable_metadata = CodeMutator.obtain_variable_types(tree, input_metadata)
                     merged_metadata = input_metadata | variable_metadata
                     mutated_sol = CodeMutator.mutate_for_to_while(tree = tree, input_metadata=merged_metadata)  
