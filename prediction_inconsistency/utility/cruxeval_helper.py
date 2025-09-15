@@ -1,0 +1,43 @@
+import ast
+from prediction_inconsistency.utility.database_helper import PredictionInconsistencyHelper
+from typing import Any
+
+class PredictionInconsistencyCruxEvalHelper(PredictionInconsistencyHelper):
+    @staticmethod
+    def extract_func_name(prog: str):
+        """
+        Extracts the function name from a given program
+        """
+        try:
+            tree = ast.parse(prog)
+            for node in tree.body:
+                if isinstance(node, ast.FunctionDef) and isinstance(node.name, str):
+                    return node.name
+
+        except Exception as e:
+            raise e
+        
+    @staticmethod
+    def extract_input_metadata(prog: str, test_input: Any):
+        tree = ast.parse(prog)
+        
+        class FunctionArgExtractor(ast.NodeVisitor):
+            def __init__(self):
+                self.arg_names = []
+            def visit_FunctionDef(self, node):
+                if isinstance(node.args, ast.arguments):
+                    self.arg_names = [arg.arg for arg in node.args.args if isinstance(arg, ast.arg)]
+
+        extractor = FunctionArgExtractor()
+        extractor.visit(tree)
+        
+        arg_names = extractor.arg_names
+        input_metadata_dict = {}
+
+        if len(arg_names) == 1:
+            input_metadata_dict[arg_names[0]] = type(test_input).__name__
+        elif len(arg_names) > 1 and isinstance(test_input,(list, tuple)):
+            for idx, arg in enumerate(arg_names):
+                input_metadata_dict[arg] = type(test_input[idx]).__name__
+        return input_metadata_dict    
+        
