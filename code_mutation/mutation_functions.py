@@ -459,7 +459,7 @@ class CodeMutator:
 
         except Exception as e:
             print(f"DEBUG: Mutation check failed with error: {type(e).__name__}: {e}")
-            raise MutationCheckFailedError()
+            raise MutationCheckFailedError(e)
     
     @staticmethod
     def obtain_variable_types(tree: ast.AST, metadata_map: Dict[str, str]) -> Dict[str, str]: 
