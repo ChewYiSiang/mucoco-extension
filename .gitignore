@@ -7,3 +7,6 @@ x.py
 requirements.txt
 bigcodebenchvenv
 y.py
+
+# OpenRouter test notebooks (temporary)
+prediction_inconsistency/test_notebooks/open_router/
