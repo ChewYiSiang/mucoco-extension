@@ -37,11 +37,24 @@ class PredictionInconsistencyPromptTemplate:
             raise ValueError(f"{task_type} is an invalid task type. Only {InputPrediction.NAME} and {OutputPrediction.NAME} are valid.")
     
     @staticmethod
-    def return_model_appropriate_prompt(task_type: str, prompt_type: str, model_name: str = None):
+    def return_appropriate_qwen_prompt(task_type: str, prompt_type: str, thinking_mode: bool = False):
+        """Return Qwen-specific prompts with ChatML format."""
+        from prediction_inconsistency.prompt_templates.qwen_prompt_template import QwenPredictionInconsistencyPromptTemplate, QwenThinkingPredictionInconsistencyPromptTemplate
+        
+        if thinking_mode:
+            return QwenThinkingPredictionInconsistencyPromptTemplate.return_appropriate_prompt(task_type, prompt_type)
+        else:
+            return QwenPredictionInconsistencyPromptTemplate.return_appropriate_prompt(task_type, prompt_type)
+    
+    @staticmethod
+    def return_model_appropriate_prompt(task_type: str, prompt_type: str, model_name: str = None, thinking_mode: bool = False):
         """Return the appropriate prompt template based on model type."""
         # Check if it's a Llama model
         if model_name and ('llama' in model_name.lower() or 'Llama' in model_name):
             return PredictionInconsistencyPromptTemplate.return_appropriate_llama_prompt(task_type, prompt_type)
+        # Check if it's a Qwen model
+        elif model_name and ('qwen' in model_name.lower() or 'Qwen' in model_name):
+            return PredictionInconsistencyPromptTemplate.return_appropriate_qwen_prompt(task_type, prompt_type, thinking_mode)
         else:
             # Use generic templates for other models (Mistral, GPT, etc.)
             return PredictionInconsistencyPromptTemplate.return_appropriate_prompt(task_type, prompt_type)
