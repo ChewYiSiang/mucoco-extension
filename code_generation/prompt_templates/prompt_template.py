@@ -65,6 +65,24 @@ class PromptTemplate(ABC):
         pass
 
 class MCQPromptTemplate(PromptTemplate):
+    
+    @staticmethod
+    def return_model_appropriate_prompt(prompt_type: str, model_name: str = None, thinking_mode: bool = False):
+        """Return the appropriate prompt template based on model type."""
+        # Check if it's a Qwen model
+        if model_name and ('qwen' in model_name.lower() or 'Qwen' in model_name):
+            return MCQPromptTemplate.return_appropriate_qwen_prompt(prompt_type, thinking_mode)
+        else:
+            # Use generic templates for other models
+            return MCQPromptTemplate().return_appropriate_prompt(prompt_type)
+    
+    @staticmethod
+    def return_appropriate_qwen_prompt(prompt_type: str, thinking_mode: bool = False):
+        """Return Qwen-specific prompts with ChatML format."""
+        from code_generation.prompt_templates.qwen_prompt_template import QwenMCQPromptTemplate
+        
+        return QwenMCQPromptTemplate().return_appropriate_prompt(prompt_type)
+    
     def zero_shot_prompt() -> str:
         prompt = textwrap.dedent("""
             Using this code snipper, answer the MCQ question below. 
@@ -86,6 +104,30 @@ class MCQPromptTemplate(PromptTemplate):
         return prompt
 
 class OpenEndedPromptTemplate(PromptTemplate):
+    
+    @staticmethod
+    def return_model_appropriate_prompt(prompt_type: str, model_name: str = None, thinking_mode: bool = False):
+        """Return the appropriate prompt template based on model type."""
+        # Check if it's a Llama model
+        if model_name and ('llama' in model_name.lower() or 'Llama' in model_name):
+            return LlamaOpenEndedPromptTemplate().return_appropriate_prompt(prompt_type)
+        # Check if it's a Qwen model
+        elif model_name and ('qwen' in model_name.lower() or 'Qwen' in model_name):
+            return OpenEndedPromptTemplate.return_appropriate_qwen_prompt(prompt_type, thinking_mode)
+        else:
+            # Use generic templates for other models
+            return OpenEndedPromptTemplate().return_appropriate_prompt(prompt_type)
+    
+    @staticmethod
+    def return_appropriate_qwen_prompt(prompt_type: str, thinking_mode: bool = False):
+        """Return Qwen-specific prompts with ChatML format."""
+        from code_generation.prompt_templates.qwen_prompt_template import QwenOpenEndedPromptTemplate, QwenThinkingOpenEndedPromptTemplate
+        
+        if thinking_mode:
+            return QwenThinkingOpenEndedPromptTemplate().return_appropriate_prompt(prompt_type)
+        else:
+            return QwenOpenEndedPromptTemplate().return_appropriate_prompt(prompt_type)
+    
     def zero_shot_prompt(self) -> str:
         prompt = textwrap.dedent("""
         # Complete the given code snippet using the description below. 
