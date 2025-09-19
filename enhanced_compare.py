@@ -227,10 +227,10 @@ def print_detailed_stats(stats, reference_name, comparison_name):
 
 def main():
     # Reference file (the one to compare all others against)
-    reference_path = "results/Llama/Input_Prediction/FEW_SHOT/Llama-3.1-8B-Instruct_few_shot_no_mutation2.csv"
+    reference_path = "results/Llama/Output_Prediction/HumanEval/HumanEval_few_shot_no_mutation3.csv"
     
     # Directory containing files to compare
-    comparison_dir = "results/Llama/Input_Prediction"
+    comparison_dir = "results/Llama/Output_Prediction/HumanEval"
     
     print("=" * 80)
     print("ENHANCED LLAMA INPUT PREDICTION COMPARISON")
