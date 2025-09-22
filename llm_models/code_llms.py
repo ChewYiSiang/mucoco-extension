@@ -64,6 +64,6 @@ class MistralGPU(CodeLLM):
 
 if __name__ == "__main__":
     load_dotenv()
-    llm = Mistral()
-    text, tokens, avg_lp = llm.invoke({"x": "hi"}, "Say hello to {x} in one short sentence.")
-    print(text)
+    llm = OpenAILLM()
+    x = llm.invoke({"d": 'what is capital of singapore?'}, "{d}")
+    print(x)

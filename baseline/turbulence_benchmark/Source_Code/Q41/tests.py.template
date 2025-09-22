@@ -2,7 +2,7 @@ from Q41.$4_results_$5.Folder_$2.generated_answer import $3
 
 
 def test_both_lists_empty():
-    assert $3([], []) = set()
+    assert $3([], []) == set()
     
 
 def test_same_lists():

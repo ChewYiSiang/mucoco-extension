@@ -226,7 +226,9 @@ class LLMConsistencyTester(CodeGenerationTester):
                     ans = LLMConsistencyTester.process_llm_ans(ans)
 
                     log_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
-
+                    
+                    if task_type == InputPrediction.NAME:
+                        log_entry['geometric'] = ans_dict["geom_mean_prob"]
                 else: 
                     try:
                         ans = self.execute_llm(

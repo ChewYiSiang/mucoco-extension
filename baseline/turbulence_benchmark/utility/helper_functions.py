@@ -1,6 +1,6 @@
 import os
 import importlib.util
-from typing import List, Any
+from typing import List, Any, Iterable
 import ast
 import re
 import multiprocessing as mp
@@ -9,6 +9,8 @@ import numpy as np
 from utility.custom_decorators import multiprocessing_method
 import contextlib
 import io
+import random
+from numpy import matrix
 
 f = io.StringIO()
 
@@ -19,6 +21,9 @@ def run_tests(
         test_names: List[str], 
         error_queue: mp.Queue, 
     ) -> None:
+
+    random.seed(1234)
+
     with suppress(Exception) and contextlib.redirect_stdout(f):
         namespace = {}
 
@@ -31,7 +36,6 @@ def run_tests(
                     namespace[test_name]()
                 except Exception as e:
                     error_queue.put(e)
-                    raise e
                 
 @multiprocessing_method
 def run_program(
@@ -40,6 +44,8 @@ def run_program(
         func_input: Any,
         mp_queue: mp.Queue,
     ) -> None:
+    random.seed(1234)
+
     with contextlib.redirect_stdout(f):
         namespace = {}
         exec(program, namespace)
@@ -99,6 +105,22 @@ class TurbulenceBenchmarkHelper:
             res.append(gen_func_params_res)
 
         return res
+    
+    def obtain_canon_sol_output(
+        self,
+        solution: str,
+        test_input: Any,
+        func_name: str,
+        ) -> Any | None:
+
+        answer = self._obtain_program_answer(
+            program=solution,
+            func_input=test_input,
+            func_name=func_name
+        )
+
+        return answer
+
     
     def process_test_cases(
         self,
@@ -160,6 +182,7 @@ class TurbulenceBenchmarkHelper:
 
         timeout = 30
         error_queue = mp.Queue()
+
         run_tests_process = mp.Process(
             target= run_tests,
             kwargs={
@@ -205,24 +228,51 @@ class TurbulenceBenchmarkHelper:
             metadata: str,
         ) -> np.matrix | Any:
         if metadata == np.matrix.__name__:
-            return np.matrix(list(data))
+            return np.matrix(eval(data))
         elif type(data).__name__ != metadata:
-            return ast.literal_eval(data)
+            return eval(data)
         else:
             return data
-        
-
-    def verify_LLM_answer(
-            self,
+    
+    def verify_prog_answer(
+            self, 
             canonical_sol: str,
             func_input: Any,
             func_name: str,
-            llm_ans: str
+            func_output: Any,
         ):
-        model_ans = self._obtain_program_answer(program=canonical_sol, func_input=func_input, func_name=func_name)
-        llm_ans = self._obtain_program_answer(program=llm_ans, func_input=func_input, func_name=func_name)
 
-        assert model_ans == llm_ans
+        class MatrixNodeVisitor(ast.NodeVisitor):
+            def __init__(self):
+                self.contains_np_matrix = False
+            def visit_Call(self, node):
+                if isinstance(node.func, ast.Name) and node.func.id == np.matrix.__name__:
+                    self.contains_np_matrix = True
+
+        def _assert_identical_matrix(matrix_1, matrix_2):
+            assert all(np.array_equal(np.array(m1), np.array(m2)) for m1, m2 in zip(matrix_1, matrix_2)) and len(matrix_1) == len(matrix_2)
+        
+        canon_ans = self._obtain_program_answer(program=canonical_sol, func_input=func_input, func_name=func_name)
+        if isinstance(canon_ans, (tuple, list)):
+        
+            tree = ast.parse(str(canon_ans))
+            matrix_visitor = MatrixNodeVisitor()
+            matrix_visitor.visit(tree)
+
+            if matrix_visitor.contains_np_matrix == True:
+                _assert_identical_matrix(canon_ans, func_output)
+                return
+
+
+        if isinstance(canon_ans, list) and isinstance(func_output, list):
+            canon_ans = sorted(canon_ans, key=lambda x: (type(x).__name__, x))
+            func_output = sorted(func_output, key=lambda x: (type(x).__name__, x))
+            assert canon_ans == func_output
+
+        else:
+            assert canon_ans == func_output
+
+
         
     def _obtain_program_answer(
             self,

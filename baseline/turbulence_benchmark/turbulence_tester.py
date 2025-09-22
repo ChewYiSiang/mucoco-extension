@@ -36,7 +36,6 @@ class TurbulenceTester(CodeGenerationTester):
         num_samples_per_task = min(num_samples_per_task, max_samples_per_task)
 
         num_tests = min(self.question_database.count_documents({}) - continue_from + 1, num_tests + 1)         # ensuring that the number of iterations is lower than max number of documents in the db
-        
         if not check_for_mutation_conflicts(mutations=mutations):
             raise ValueError("An invalid combination of mutations were used.")
 
@@ -45,7 +44,6 @@ class TurbulenceTester(CodeGenerationTester):
                 raise ValueError(f"{mutation} mutation is an invalid mutation for code generation.")
 
         task_pass_count = 0             # int variable tracking the number of tasks that have passed
-        failed_validity = []            # list storing the test case id that have failed the check functions
         timeout = 8                     # int variable indicating the number of seconds the LLM generated program should complete running by
 
         reasoning_models = [getattr(ReasoningModels, model) for model in dir(ReasoningModels) if not model.startswith("_")]
@@ -61,7 +59,7 @@ class TurbulenceTester(CodeGenerationTester):
             raise ValueError(f"{model_name} is not a valid local model. The models supported by this framework are {', '.join(valid_model_names)}")
 
         # try:     # try statement to catch any potential errors arising from using free APIs. These APIs are usually unstable and can crash at any time. 
-        for q_no in tqdm(range(continue_from, continue_from + num_tests), desc = "Question Progress"):
+        for q_no in tqdm(range(continue_from, continue_from + num_tests+1), desc = "Question Progress"):
             task_id = f"TurbulenceQ{q_no}"
 
             qn_sample = self.question_database.find_one({"_id": task_id})
@@ -100,11 +98,13 @@ class TurbulenceTester(CodeGenerationTester):
                     "check_function": None,
                     "canonical_solution": None,
                     "func_input": None,
+                    "func_output": None,
                     "failure_type": None,
                 }
 
                 params = task['params']
                 func_input = task['func_input']
+                func_output = task['func_output']
 
                 func_name: str = qn_sample['func_name']                           # check function for testing validity of a solution
                 
@@ -116,6 +116,7 @@ class TurbulenceTester(CodeGenerationTester):
 
                 processed_params = helper.convert_data_to_metadata(data = params["data"], metadata = params['metadata'])
                 processed_func_input = helper.convert_data_to_metadata(data = func_input["data"], metadata = func_input['metadata'])
+                processed_func_output = helper.convert_data_to_metadata(data = func_output["data"], metadata = func_output['metadata'])
 
                 log_data_entry['func_input'] = processed_func_input
 
@@ -187,12 +188,14 @@ class TurbulenceTester(CodeGenerationTester):
         
                 try:
                     # Verification Step 1: Verifying LLM answer with canonical solution
-                    helper.verify_LLM_answer(
+                    helper.verify_prog_answer(
                         canonical_sol = codemutator.mutated_dict['full_sol'],
                         func_input = processed_func_input,
                         func_name = func_name,
-                        llm_ans = ans
+                        func_output = processed_func_output
                         )
+                    
+                    log_data_entry['func_output'] = processed_func_output
 
                     # Verification Step 2: Verifying LLM answer with test suite
                     helper.run_test_suite(
