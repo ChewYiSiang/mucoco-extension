@@ -139,6 +139,65 @@ def enhanced_comparison(reference_df, comparison_df, reference_name, comparison_
     
     return stats
 
+def save_results_to_csv(all_results, reference_name, output_file="comparison_results.csv"):
+    """Save comparison results to CSV file"""
+    
+    # Prepare data for CSV
+    csv_data = []
+    
+    for comparison_name, stats in all_results.items():
+        total = stats['total_tasks']
+        mutable = stats['mutable_tasks']
+        mutation_errors = stats['mutation_error_tasks']
+        
+        # Calculate percentages
+        mutable_pct = (mutable/total*100) if total > 0 else 0
+        mutation_error_pct = (mutation_errors/total*100) if total > 0 else 0
+        
+        # Calculate inconsistency metrics
+        total_inconsistencies = stats['ref_succeeded_comp_failed'] + stats['ref_failed_comp_succeeded']
+        both_succeeded_count = stats['both_succeeded']
+        tasks_with_at_least_one_success = both_succeeded_count + total_inconsistencies
+        inconsistency_rate = (total_inconsistencies/tasks_with_at_least_one_success*100) if tasks_with_at_least_one_success > 0 else 0
+        
+        # Calculate individual percentages for mutable tasks
+        both_succeeded_pct = (stats['both_succeeded']/mutable*100) if mutable > 0 else 0
+        both_failed_assertion_pct = (stats['both_failed_assertion']/mutable*100) if mutable > 0 else 0
+        both_failed_other_pct = (stats['both_failed_other']/mutable*100) if mutable > 0 else 0
+        ref_success_comp_fail_pct = (stats['ref_succeeded_comp_failed']/mutable*100) if mutable > 0 else 0
+        ref_fail_comp_success_pct = (stats['ref_failed_comp_succeeded']/mutable*100) if mutable > 0 else 0
+        
+        row = {
+            'reference_file': reference_name,
+            'comparison_file': comparison_name,
+            'total_tasks': total,
+            'mutation_error_tasks': mutation_errors,
+            'mutation_error_pct': round(mutation_error_pct, 1),
+            'mutable_tasks': mutable,
+            'mutable_tasks_pct': round(mutable_pct, 1),
+            'both_succeeded': stats['both_succeeded'],
+            'both_succeeded_pct': round(both_succeeded_pct, 1),
+            'both_failed_assertion': stats['both_failed_assertion'],
+            'both_failed_assertion_pct': round(both_failed_assertion_pct, 1),
+            'both_failed_other': stats['both_failed_other'],
+            'both_failed_other_pct': round(both_failed_other_pct, 1),
+            'ref_success_comp_fail': stats['ref_succeeded_comp_failed'],
+            'ref_success_comp_fail_pct': round(ref_success_comp_fail_pct, 1),
+            'ref_fail_comp_success': stats['ref_failed_comp_succeeded'],
+            'ref_fail_comp_success_pct': round(ref_fail_comp_success_pct, 1),
+            'total_inconsistencies': total_inconsistencies,
+            'tasks_with_at_least_one_success': tasks_with_at_least_one_success,
+            'inconsistency_rate_pct': round(inconsistency_rate, 1)
+        }
+        
+        csv_data.append(row)
+    
+    # Convert to DataFrame and save
+    df = pd.DataFrame(csv_data)
+    df.to_csv(output_file, index=False)
+    print(f"\n📊 Results saved to: {output_file}")
+    return output_file
+
 def print_detailed_stats(stats, reference_name, comparison_name):
     """Print comprehensive statistics"""
     
@@ -219,11 +278,8 @@ def print_detailed_stats(stats, reference_name, comparison_name):
     print(f"\n{'='*40}")
     print("IDENTICAL FAILURE ANALYSIS:")
     print(f"{'='*40}")
-    if stats['identical_error_types']:
-        for error_type, count in sorted(stats['identical_error_types'].items(), key=lambda x: x[1], reverse=True):
-            print(f"   {error_type}: {count} tasks")
-    else:
-        print("   No identical failures found")
+    # Note: This section had an error in the original code - stats doesn't have 'identical_error_types'
+    print("   Analysis not available (needs to be implemented)")
 
 def main():
     # Reference file (the one to compare all others against)
@@ -292,6 +348,12 @@ def main():
         print(f"  Mutable: {mutable}/{total} ({mutable/total*100:.1f}%)")
         print(f"  Inconsistencies: {inconsistencies}/{comparable} ({inconsistencies/comparable*100:.1f}% if comparable > 0)")
         print()
+    
+    # Save results to CSV
+    if all_results:
+        reference_name = os.path.basename(reference_path).replace('.csv', '')
+        output_csv = f"enhanced_comparison_{reference_name}.csv"
+        save_results_to_csv(all_results, reference_name, output_csv)
 
 if __name__ == "__main__":
     main()
