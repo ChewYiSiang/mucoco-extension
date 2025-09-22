@@ -47,6 +47,13 @@ class PredictionInconsistencyPromptTemplate:
             return QwenPredictionInconsistencyPromptTemplate.return_appropriate_prompt(task_type, prompt_type)
     
     @staticmethod
+    def return_appropriate_gemma_prompt(task_type: str, prompt_type: str):
+        """Return Gemma-specific prompts with Gemma chat template format."""
+        from prediction_inconsistency.prompt_templates.gemma_prompt_template import GemmaPredictionInconsistencyPromptTemplate
+        
+        return GemmaPredictionInconsistencyPromptTemplate.return_appropriate_prompt(task_type, prompt_type)
+    
+    @staticmethod
     def return_model_appropriate_prompt(task_type: str, prompt_type: str, model_name: str = None, thinking_mode: bool = False):
         """Return the appropriate prompt template based on model type."""
         # Check if it's a Llama model
@@ -55,6 +62,9 @@ class PredictionInconsistencyPromptTemplate:
         # Check if it's a Qwen model
         elif model_name and ('qwen' in model_name.lower() or 'Qwen' in model_name):
             return PredictionInconsistencyPromptTemplate.return_appropriate_qwen_prompt(task_type, prompt_type, thinking_mode)
+        # Check if it's a Gemma model
+        elif model_name and ('gemma' in model_name.lower() or 'Gemma' in model_name):
+            return PredictionInconsistencyPromptTemplate.return_appropriate_gemma_prompt(task_type, prompt_type)
         else:
             # Use generic templates for other models (Mistral, GPT, etc.)
             return PredictionInconsistencyPromptTemplate.return_appropriate_prompt(task_type, prompt_type)

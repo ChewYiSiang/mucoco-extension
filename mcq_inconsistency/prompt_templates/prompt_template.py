@@ -9,6 +9,9 @@ class MCQInconsistencyPromptTemplate(PromptTemplate):
         # Check if it's a Qwen model
         if model_name and ('qwen' in model_name.lower() or 'Qwen' in model_name):
             return MCQInconsistencyPromptTemplate.return_appropriate_qwen_prompt(prompt_type, thinking_mode)
+        # Check if it's a Gemma model
+        elif model_name and ('gemma' in model_name.lower() or 'Gemma' in model_name):
+            return MCQInconsistencyPromptTemplate.return_appropriate_gemma_prompt(prompt_type)
         else:
             # Use generic templates for other models
             return MCQInconsistencyPromptTemplate().return_appropriate_prompt(prompt_type)
@@ -22,6 +25,13 @@ class MCQInconsistencyPromptTemplate(PromptTemplate):
             return QwenThinkingMCQInconsistencyPromptTemplate().return_appropriate_prompt(prompt_type)
         else:
             return QwenMCQInconsistencyPromptTemplate().return_appropriate_prompt(prompt_type)
+    
+    @staticmethod
+    def return_appropriate_gemma_prompt(prompt_type: str):
+        """Return Gemma-specific prompts with Gemma chat template format."""
+        from mcq_inconsistency.prompt_templates.gemma_prompt_template import GemmaMCQInconsistencyPromptTemplate
+        
+        return GemmaMCQInconsistencyPromptTemplate().return_appropriate_prompt(prompt_type)
     
     def zero_shot_prompt(self) -> str:
         prompt = textwrap.dedent("""

@@ -72,6 +72,9 @@ class MCQPromptTemplate(PromptTemplate):
         # Check if it's a Qwen model
         if model_name and ('qwen' in model_name.lower() or 'Qwen' in model_name):
             return MCQPromptTemplate.return_appropriate_qwen_prompt(prompt_type, thinking_mode)
+        # Check if it's a Gemma model
+        elif model_name and ('gemma' in model_name.lower() or 'Gemma' in model_name):
+            return MCQPromptTemplate.return_appropriate_gemma_prompt(prompt_type)
         else:
             # Use generic templates for other models
             return MCQPromptTemplate().return_appropriate_prompt(prompt_type)
@@ -82,6 +85,13 @@ class MCQPromptTemplate(PromptTemplate):
         from code_generation.prompt_templates.qwen_prompt_template import QwenMCQPromptTemplate
         
         return QwenMCQPromptTemplate().return_appropriate_prompt(prompt_type)
+    
+    @staticmethod
+    def return_appropriate_gemma_prompt(prompt_type: str):
+        """Return Gemma-specific prompts with Gemma chat template format."""
+        from code_generation.prompt_templates.gemma_prompt_template import GemmaMCQPromptTemplate
+        
+        return GemmaMCQPromptTemplate().return_appropriate_prompt(prompt_type)
     
     def zero_shot_prompt() -> str:
         prompt = textwrap.dedent("""
@@ -114,6 +124,9 @@ class OpenEndedPromptTemplate(PromptTemplate):
         # Check if it's a Qwen model
         elif model_name and ('qwen' in model_name.lower() or 'Qwen' in model_name):
             return OpenEndedPromptTemplate.return_appropriate_qwen_prompt(prompt_type, thinking_mode)
+        # Check if it's a Gemma model
+        elif model_name and ('gemma' in model_name.lower() or 'Gemma' in model_name):
+            return OpenEndedPromptTemplate.return_appropriate_gemma_prompt(prompt_type)
         else:
             # Use generic templates for other models
             return OpenEndedPromptTemplate().return_appropriate_prompt(prompt_type)
@@ -127,6 +140,13 @@ class OpenEndedPromptTemplate(PromptTemplate):
             return QwenThinkingOpenEndedPromptTemplate().return_appropriate_prompt(prompt_type)
         else:
             return QwenOpenEndedPromptTemplate().return_appropriate_prompt(prompt_type)
+    
+    @staticmethod
+    def return_appropriate_gemma_prompt(prompt_type: str):
+        """Return Gemma-specific prompts with Gemma chat template format."""
+        from code_generation.prompt_templates.gemma_prompt_template import GemmaOpenEndedPromptTemplate
+        
+        return GemmaOpenEndedPromptTemplate().return_appropriate_prompt(prompt_type)
     
     def zero_shot_prompt(self) -> str:
         prompt = textwrap.dedent("""
