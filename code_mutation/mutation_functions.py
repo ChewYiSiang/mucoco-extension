@@ -5,6 +5,7 @@ import inspect
 import random
 import string
 import re
+import numpy as np
 from code_mutation.ast_mutation import ASTNodeHelper
 from prediction_inconsistency.utility.humaneval_helper import PredictionInconsistencyHumanEvalHelper
 from prediction_inconsistency.utility.cruxeval_helper import PredictionInconsistencyCruxEvalHelper
@@ -34,24 +35,58 @@ HUMANEVAL = Benchmarks.HumanEval.NAME
 CRUXEVAL = Benchmarks.CruxEval.NAME
 TURBULENCE = Benchmarks.Turbulence.NAME
 
-def run_llm_answer(mutated_sol: str, expected_output: Any, func_name: str, mp_queue: multiprocessing.Queue, test_input: Any = 'no_input'):
+# def run_llm_answer(mutated_sol: str, expected_output: Any, func_name: str, mp_queue: multiprocessing.Queue, test_input: Any = 'no_input'):
+#         """
+#         This function is used to check if an LLM's answer gives the correct output
+#         """
+#         namespace = {}
+#         try:
+#             # Execute the mutated code in isolated namespace
+#             exec(mutated_sol, namespace)
+#             sig = inspect.signature(namespace[func_name])
+#             if test_input == 'no_input':
+#                 assert namespace[func_name]() == expected_output
+#             elif len(sig.parameters) > 1 and isinstance(test_input, (list, tuple)):
+#                 assert expected_output ==  namespace[func_name](*test_input)
+#             else:
+#                 o = namespace[func_name](test_input) 
+#                 assert o == expected_output
+#         except Exception as e:
+#             mp_queue.put(e)
+
+
+def run_llm_answer(
+        prog: str, 
+        func_name: str, 
+        error_queue: multiprocessing.Queue, 
+        ans_queue: multiprocessing.Queue,
+        func_input: Any = 'no_input'):
         """
         This function is used to check if an LLM's answer gives the correct output
         """
+        
         namespace = {}
+        random.seed(1234)
+
         try:
             # Execute the mutated code in isolated namespace
-            exec(mutated_sol, namespace)
+            exec(prog, namespace)
             sig = inspect.signature(namespace[func_name])
-            if test_input == 'no_input':
-                assert namespace[func_name]() == expected_output
-            elif len(sig.parameters) > 1 and isinstance(test_input, (list, tuple)):
-                assert expected_output ==  namespace[func_name](*test_input)
+            # Checking if there are any arguments like *args 
+            contains_star_arg = any(p.kind == inspect.Parameter.VAR_POSITIONAL for p in sig.parameters.values())
+            if not isinstance(func_input, np.matrix) and func_input == 'no_input':
+                prog_output = namespace[func_name]()
+            elif (len(sig.parameters) > 1 or contains_star_arg) and isinstance(func_input, (list, tuple)):
+                prog_output = namespace[func_name](*func_input)
             else:
-                o = namespace[func_name](test_input) 
-                assert o == expected_output
+                prog_output = namespace[func_name](func_input) 
+
+            ans_queue.put(prog_output)
+
         except Exception as e:
-            mp_queue.put(e)
+            error_queue.put(e)
+
+
 
 class CodeMutator:
     # Main class for applying various types of code mutations while preserving functionality.
@@ -141,6 +176,43 @@ class CodeMutator:
         except Exception as e:
             print(f"DEBUG: Semantic equivalence check failed: {e}")
             return False
+    
+    @staticmethod
+    def verify_with_canon_ans(
+        func_output: Any, 
+        canon_ans: Any,
+        ):
+        class MatrixNodeVisitor(ast.NodeVisitor):
+            def __init__(self):
+                self.contains_np_matrix = False
+            def visit_Call(self, node):
+                if isinstance(node.func, ast.Name) and node.func.id == np.matrix.__name__:
+                    self.contains_np_matrix = True
+
+        def _assert_identical_matrix(matrix_1, matrix_2):
+            assert all(np.array_equal(np.array(m1), np.array(m2)) for m1, m2 in zip(matrix_1, matrix_2)) and len(matrix_1) == len(matrix_2)
+        
+        try:
+            if isinstance(canon_ans, (tuple, list)):
+                tree = ast.parse(str(canon_ans))
+                matrix_visitor = MatrixNodeVisitor()
+                matrix_visitor.visit(tree)
+
+                if matrix_visitor.contains_np_matrix == True:
+                    _assert_identical_matrix(canon_ans, func_output)
+                    return
+
+
+            if isinstance(canon_ans, list) and isinstance(func_output, list):
+                canon_ans = sorted(canon_ans, key=lambda x: (type(x).__name__, x))
+                func_output = sorted(func_output, key=lambda x: (type(x).__name__, x))
+                assert canon_ans == func_output
+
+            else:
+                assert canon_ans == func_output
+        except Exception as e:
+            raise e
+
 
     def check_solution_validity(
         self,
@@ -149,29 +221,34 @@ class CodeMutator:
         input_args: Any = "no_inputs", 
     ):
         timeout = 5
-        multiprocessing_queue = multiprocessing.Queue()
-        if input_args == "no_inputs":
-            # verify_answer_process = multiprocessing.Process(target= run_llm_answer, args = (program, output_args, self.func_name, multiprocessing_queue))
+        error_queue = multiprocessing.Queue()
+        ans_queue = multiprocessing.Queue()
+        if not isinstance(input_args, np.matrix) and input_args == "no_inputs":
             verify_answer_process = multiprocessing.Process(
                 target= run_llm_answer, 
-                kwargs = {'mutated_sol' : program,
-                        'expected_output': output_args,
+                kwargs = {'prog' : program,
                         'func_name': self.func_name,
-                        'mp_queue' : multiprocessing_queue
+                        'error_queue' : error_queue,
+                        'ans_queue': ans_queue
                         }
                 )
 
         else:
+            # print('yar')
+            # print(self.func_name)
+            # print(program)
+            # print(output_args)
+            # print(input_args)
             verify_answer_process = multiprocessing.Process(
                 target= run_llm_answer, 
-                kwargs = {'mutated_sol' : program,
-                        'expected_output': output_args,
+                kwargs = {'prog' : program,
+                        'func_input': input_args,
                         'func_name': self.func_name,
-                        'test_input': input_args,
-                        'mp_queue' : multiprocessing_queue
+                        'error_queue' : error_queue,
+                        'ans_queue': ans_queue
                         }
                 )
-
+            
         verify_answer_process.start()
 
         verify_answer_process.join(timeout=timeout)
@@ -179,9 +256,17 @@ class CodeMutator:
             verify_answer_process.kill()
             verify_answer_process.join()
             raise RuntimeError()
-        if not multiprocessing_queue.empty():
-            e = multiprocessing_queue.get()
+        if not error_queue.empty():
+            e = error_queue.get()
             raise e
+        if not ans_queue.empty():
+            prog_ans = ans_queue.get()
+        else:
+            raise ValueError("Function failed to execute or return a result")
+        
+        ### Answer Verification Step
+        CodeMutator.verify_with_canon_ans(func_output=prog_ans, canon_ans=output_args)
+
         
     def mutate_for_code_generation(
             self,
@@ -328,9 +413,9 @@ class CodeMutator:
             multiprocessing_queue = multiprocessing.Queue()
 
             verify_answer_process = multiprocessing.Process(        
-            target= test_set_helper.run_llm_answer,
-            args = (mutated_full_sol, self.mutated_dict['check_function'], self.func_name, multiprocessing_queue)
-            )
+                target= test_set_helper.run_llm_answer,
+                args = (mutated_full_sol, self.mutated_dict['check_function'], self.func_name, multiprocessing_queue)
+                )
             
             verify_answer_process.start()
             verify_answer_process.join(timeout=timeout)
@@ -369,7 +454,7 @@ class CodeMutator:
                 if mutation_type == FOR2WHILE:
                     if task_set in (HUMANEVAL, CODEMMLU):
                         input_metadata = PredictionInconsistencyHumanEvalHelper.extract_input_metadata(examples = examples, qn = full_sol)
-                    elif task_set in (CRUXEVAL, ):
+                    elif task_set in (CRUXEVAL, TURBULENCE):
                         input_metadata = PredictionInconsistencyCruxEvalHelper.extract_input_metadata(prog=full_sol, test_input=input_args)
                     variable_metadata = CodeMutator.obtain_variable_types(tree, input_metadata)
                     merged_metadata = input_metadata | variable_metadata

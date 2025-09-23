@@ -11,6 +11,8 @@ import contextlib
 import io
 import random
 from numpy import matrix
+import inspect
+from code_mutation.mutation_functions import run_llm_answer, CodeMutator
 
 f = io.StringIO()
 
@@ -37,22 +39,7 @@ def run_tests(
                 except Exception as e:
                     error_queue.put(e)
                 
-@multiprocessing_method
-def run_program(
-        program: str,
-        func_name: str,
-        func_input: Any,
-        mp_queue: mp.Queue,
-    ) -> None:
-    random.seed(1234)
-
-    with contextlib.redirect_stdout(f):
-        namespace = {}
-        exec(program, namespace)
-        try:
-            mp_queue.put(namespace[func_name](func_input))
-        except Exception:
-            return
+            
 
 
 class TurbulenceBenchmarkHelper:
@@ -84,6 +71,12 @@ class TurbulenceBenchmarkHelper:
         res = func_module.gen_params(q_no = self.q_no, seed = self.seed)
         os.chdir(curr_dir) 
         return res
+    
+    def modify_original_prompt_for_prediction_testing(self, original_prompt: str) -> str:
+        prompt_list = original_prompt.split()
+        if prompt_list[0].lower() == "write":
+            prompt_list[0] = "You are given"
+        return ' '.join(prompt_list)
     
     def run_input_generator(
         self,
@@ -240,38 +233,17 @@ class TurbulenceBenchmarkHelper:
             func_input: Any,
             func_name: str,
             func_output: Any,
-        ):
-
-        class MatrixNodeVisitor(ast.NodeVisitor):
-            def __init__(self):
-                self.contains_np_matrix = False
-            def visit_Call(self, node):
-                if isinstance(node.func, ast.Name) and node.func.id == np.matrix.__name__:
-                    self.contains_np_matrix = True
-
-        def _assert_identical_matrix(matrix_1, matrix_2):
-            assert all(np.array_equal(np.array(m1), np.array(m2)) for m1, m2 in zip(matrix_1, matrix_2)) and len(matrix_1) == len(matrix_2)
+        ) -> None:
         
         canon_ans = self._obtain_program_answer(program=canonical_sol, func_input=func_input, func_name=func_name)
-        if isinstance(canon_ans, (tuple, list)):
+        CodeMutator.verify_with_canon_ans(func_output=func_output, canon_ans=canon_ans)
         
-            tree = ast.parse(str(canon_ans))
-            matrix_visitor = MatrixNodeVisitor()
-            matrix_visitor.visit(tree)
-
-            if matrix_visitor.contains_np_matrix == True:
-                _assert_identical_matrix(canon_ans, func_output)
-                return
-
-
-        if isinstance(canon_ans, list) and isinstance(func_output, list):
-            canon_ans = sorted(canon_ans, key=lambda x: (type(x).__name__, x))
-            func_output = sorted(func_output, key=lambda x: (type(x).__name__, x))
-            assert canon_ans == func_output
-
-        else:
-            assert canon_ans == func_output
-
+    def verify_prog_output(
+            self,
+            canon_ans: str,
+            func_output: Any,
+        ) -> None:
+        CodeMutator.verify_with_canon_ans(func_output=func_output, canon_ans=canon_ans)
 
         
     def _obtain_program_answer(
@@ -283,15 +255,17 @@ class TurbulenceBenchmarkHelper:
 
         prog_timeout = 30
 
-        mp_queue = mp.Queue()
+        error_queue = mp.Queue()
+        ans_queue = mp.Queue()
 
         answer_process = mp.Process(
-            target = run_program,
+            target = run_llm_answer,
             kwargs= {
-                'program': program,
+                'prog': program,
                 'func_name': func_name,
-                'func_input': func_input,
-                'mp_queue': mp_queue
+                'error_queue': error_queue,
+                'ans_queue': ans_queue,
+                "func_input": func_input 
             }
         )
 
@@ -301,9 +275,10 @@ class TurbulenceBenchmarkHelper:
         if answer_process.is_alive():
             answer_process.kill()
             raise(RuntimeError())
-        
-        if not mp_queue.empty():
-            return mp_queue.get()
+        if not error_queue.empty():
+            print(error_queue.get())
+        if not ans_queue.empty():
+            return ans_queue.get()
         else:
             return None
         

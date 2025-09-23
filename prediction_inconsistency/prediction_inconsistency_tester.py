@@ -65,10 +65,10 @@ class LLMConsistencyTester(CodeGenerationTester):
 
         for mutation in mutations:
             if mutation not in InputPrediction.MUTATIONS:
-                raise ValueError(f"{mutation} mutation is an invalid mutation for mcq inconsistency.")
+                raise ValueError(f"{mutation} mutation is an invalid mutation for prediction inconsistency.")
             
         if task_set not in InputPrediction.BENCHMARKS:
-            raise ValueError(f"{task_set} is an invalid benchmark dataset for mcq inconsistency. Only {MCQInconsistency.BENCHMARKS} datasets are valid.")
+            raise ValueError(f"{task_set} is an invalid benchmark dataset for prediction inconsistency. Only {MCQInconsistency.BENCHMARKS} datasets are valid.")
 
         task_pass_count = 0             # int variable tracking the number of tasks that have passed
         failed_validity = []            # list storing the test case id that have failed the check functions

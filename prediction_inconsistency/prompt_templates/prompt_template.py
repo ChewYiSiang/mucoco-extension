@@ -50,6 +50,8 @@ class PredictionInconsistencyPromptTemplate:
         def zero_shot_prompt(self) -> str:
             prompt = textwrap.dedent("""
                 # You are given a code snippet, a description of the code and the input. Return the expected output in your answer. Your answer should only contain the expected output with no additional information. 
+                                     
+                # The output should be in the expected format. For example, given max([10,1]), your answer should be 10 and not "10".
                 {qn_desc}
                             
                 # Code Snippet
@@ -66,8 +68,9 @@ class PredictionInconsistencyPromptTemplate:
         def one_shot_prompt(self) -> str:
             prompt = textwrap.dedent("""
                 # You are given a code snippet, a description of the code, the input and a single example. You may use the example to determine the expected output. Return the expected output in your answer.
-                
                 # Your answer should only contain the expected output with no additional information. 
+                # The output should be in the expected format. For example, given max([10,1]), your answer should be 10 and not "10".
+
                                     
                 {qn_desc}
                             
@@ -88,9 +91,9 @@ class PredictionInconsistencyPromptTemplate:
         def few_shot_prompt(self) -> str:
             prompt = textwrap.dedent("""
                 # You are given a code snippet, a description of the code, the input and a few examples. You may use the examples to determine the expected output. Return the expected output in your answer. 
-                
                 # Your answer should only contain the expected output with no additional information. 
-                                    
+                # The output should be in the expected format. For example, given max([10,1]), your answer should be 10 and not "10".
+
                 {qn_desc}
                             
                 # Code Snippet

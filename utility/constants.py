@@ -73,7 +73,7 @@ class Tasks:
         
     class OutputPrediction:
         NAME = "output_prediction"
-        BENCHMARKS = (HumanEval.NAME, CruxEval.NAME)
+        BENCHMARKS = (HumanEval.NAME, CruxEval.NAME, Turbulence.NAME)
         MUTATIONS = [
             getattr(SyntacticMutations, m) for m in dir(SyntacticMutations) if not m.startswith("__")] + [
             getattr(LogicalMutations, m) for m in dir(LogicalMutations) if not m.startswith("__")] + [
