@@ -117,6 +117,7 @@ class TurbulenceTester(CodeGenerationTester):
                     func_input = task['func_input']
                     func_output = task['func_output']
 
+                    func_name: str = qn_sample['func_name']                           # check function for testing validity of a solution
                     
                     helper = TurbulenceBenchmarkHelper()
 
@@ -309,7 +310,6 @@ class TurbulenceTester(CodeGenerationTester):
             prompt_template: str = qn_sample['prompt_template']               # doc string description
             solution_template: str = qn_sample['solution_template']           # dict object containing all examples pertaining the question for few shot/one shot prompting
             params_dict: dict = qn_sample['params']                           # canonical solution to the question
-            func_name: str = qn_sample['func_name']                           # check function for testing validity of a solution
 
             # Sampling of tasks. There are a total of 100 variations of each tasks, which can be both cost and computationally expensive, hence conducting the experiments on a sample size is more ideal.
             if sampling_method == SamplingMethods.RANDOM:
@@ -345,6 +345,8 @@ class TurbulenceTester(CodeGenerationTester):
                 func_input = task['func_input']
                 func_output = task['func_output']
 
+                # func_name has to be reset each iteration as lexical mutaiton may mutate it.
+                func_name: str = qn_sample['func_name']                           # check function for testing validity of a solution
                 
                 helper = TurbulenceBenchmarkHelper()
 
@@ -367,7 +369,6 @@ class TurbulenceTester(CodeGenerationTester):
                 
                 ## Replacing the function name in templates. This is done as a seperate function as there are unintended replacements when using .replace(), hence a regex pattern is more stable
                 tests = helper.replace_func_name(tests_template = tests, func_name = func_name)
-
                 try:
                     ## Verifying that the canon solution passes the test suite
                     helper.run_test_suite(tests = tests, solution = solution)
@@ -402,8 +403,8 @@ class TurbulenceTester(CodeGenerationTester):
                             input_metadata=func_input['metadata']
                         )
                         func_name = codemutator.func_name
-                except IdenticalMutationError:
-                    log_data_entry["failure_type"] = IdenticalMutationError.__name__
+                except Exception as e:
+                    log_data_entry["failure_type"] = f"{type(e)} > {e}"
                     TurbulenceTester.log_into_csv(output_file_path = output_file_path, input_data = log_data_entry)
                     continue
 

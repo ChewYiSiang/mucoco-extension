@@ -182,6 +182,9 @@ class CodeMutator:
         func_output: Any, 
         canon_ans: Any,
         ):
+
+        print(func_output)
+        print(canon_ans)
         class MatrixNodeVisitor(ast.NodeVisitor):
             def __init__(self):
                 self.contains_np_matrix = False
@@ -234,11 +237,11 @@ class CodeMutator:
                 )
 
         else:
-            # print('yar')
-            # print(self.func_name)
-            # print(program)
-            # print(output_args)
-            # print(input_args)
+            print('yar')
+            print(self.func_name)
+            print(program)
+            print(output_args)
+            print(input_args)
             verify_answer_process = multiprocessing.Process(
                 target= run_llm_answer, 
                 kwargs = {'prog' : program,
@@ -450,7 +453,7 @@ class CodeMutator:
         try:
             if mutation_type in syntactic_mutations:
                 full_sol = self.mutated_dict['question']
-                examples = self.mutated_dict['examples']
+                examples = self.mutated_dict.get('examples', None)
                 if mutation_type == FOR2WHILE:
                     if task_set in (HUMANEVAL, CODEMMLU):
                         input_metadata = PredictionInconsistencyHumanEvalHelper.extract_input_metadata(examples = examples, qn = full_sol)

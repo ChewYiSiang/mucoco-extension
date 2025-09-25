@@ -99,7 +99,7 @@ class ASTNodeHelper:
             self.commutative_operation_exists = False
 
         def visit_BinOp(self, node):
-            if isinstance(node.op, (ast.Add, ast.Mult)):
+            if isinstance(node.op, (ast.Add, ast.Mult)) and isinstance(node.left, ast.Constant) and isinstance(node.left.value, (int, float)):
                 self.commutative_operation_exists = True
                 return # early return if + or * detected
 
@@ -867,8 +867,8 @@ class ASTNodeHelper:
         def visit_BinOp(self, node):
             self.generic_visit(node)
             
-            # Only reorder commutative operations
-            if isinstance(node.op, (ast.Add, ast.Mult)):
+            # Only reorder commutative operations and check that one of the variables is an integer
+            if isinstance(node.op, (ast.Add, ast.Mult)) and isinstance(node.left, ast.Constant) and isinstance(node.left.value, (int, float)):
                 # Swap left and right operands
                 return ast.BinOp(
                     left=node.right,
@@ -949,6 +949,7 @@ class ASTNodeHelper:
             
             if isinstance(node.value, int) and node.value > 1:
                 # Randomly choose how to unfold the constant
+                random.seed(1234)
                 unfold_type = random.choice(['add', 'mult'])
                 
                 if unfold_type == 'add':
