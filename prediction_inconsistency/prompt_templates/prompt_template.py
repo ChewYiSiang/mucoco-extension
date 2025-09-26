@@ -61,6 +61,13 @@ class PredictionInconsistencyPromptTemplate:
         return DeepSeekPredictionInconsistencyPromptTemplate.return_appropriate_prompt(task_type, prompt_type)
     
     @staticmethod
+    def return_appropriate_mistral_prompt(task_type: str, prompt_type: str):
+        """Return Mistral-specific prompts with Mistral chat template format."""
+        from prediction_inconsistency.prompt_templates.mistral_prompt_template import MistralPredictionInconsistencyPromptTemplate
+        
+        return MistralPredictionInconsistencyPromptTemplate.return_appropriate_prompt(task_type, prompt_type)
+    
+    @staticmethod
     def return_model_appropriate_prompt(task_type: str, prompt_type: str, model_name: str = None, thinking_mode: bool = False):
         """Return the appropriate prompt template based on model type."""
         # Check if it's a Llama model
@@ -75,8 +82,11 @@ class PredictionInconsistencyPromptTemplate:
         # Check if it's a DeepSeek model
         elif model_name and ('deepseek' in model_name.lower() or 'DeepSeek' in model_name):
             return PredictionInconsistencyPromptTemplate.return_appropriate_deepseek_prompt(task_type, prompt_type)
+        # Check if it's a Mistral model
+        elif model_name and ('mistral' in model_name.lower() or 'Mistral' in model_name):
+            return PredictionInconsistencyPromptTemplate.return_appropriate_mistral_prompt(task_type, prompt_type)
         else:
-            # Use generic templates for other models (Mistral, GPT, etc.)
+            # Use generic templates for other models (GPT, etc.)
             return PredictionInconsistencyPromptTemplate.return_appropriate_prompt(task_type, prompt_type)
         
     class OutputPrediction(PromptTemplate):
