@@ -54,6 +54,13 @@ class PredictionInconsistencyPromptTemplate:
         return GemmaPredictionInconsistencyPromptTemplate.return_appropriate_prompt(task_type, prompt_type)
     
     @staticmethod
+    def return_appropriate_deepseek_prompt(task_type: str, prompt_type: str):
+        """Return DeepSeek-specific prompts with DeepSeek chat template format."""
+        from prediction_inconsistency.prompt_templates.deepseek_prompt_template import DeepSeekPredictionInconsistencyPromptTemplate
+        
+        return DeepSeekPredictionInconsistencyPromptTemplate.return_appropriate_prompt(task_type, prompt_type)
+    
+    @staticmethod
     def return_model_appropriate_prompt(task_type: str, prompt_type: str, model_name: str = None, thinking_mode: bool = False):
         """Return the appropriate prompt template based on model type."""
         # Check if it's a Llama model
@@ -65,6 +72,9 @@ class PredictionInconsistencyPromptTemplate:
         # Check if it's a Gemma model
         elif model_name and ('gemma' in model_name.lower() or 'Gemma' in model_name):
             return PredictionInconsistencyPromptTemplate.return_appropriate_gemma_prompt(task_type, prompt_type)
+        # Check if it's a DeepSeek model
+        elif model_name and ('deepseek' in model_name.lower() or 'DeepSeek' in model_name):
+            return PredictionInconsistencyPromptTemplate.return_appropriate_deepseek_prompt(task_type, prompt_type)
         else:
             # Use generic templates for other models (Mistral, GPT, etc.)
             return PredictionInconsistencyPromptTemplate.return_appropriate_prompt(task_type, prompt_type)
