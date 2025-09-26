@@ -12,6 +12,9 @@ class MCQInconsistencyPromptTemplate(PromptTemplate):
         # Check if it's a Gemma model
         elif model_name and ('gemma' in model_name.lower() or 'Gemma' in model_name):
             return MCQInconsistencyPromptTemplate.return_appropriate_gemma_prompt(prompt_type)
+        # Check if it's a DeepSeek model
+        elif model_name and ('deepseek' in model_name.lower() or 'DeepSeek' in model_name):
+            return MCQInconsistencyPromptTemplate.return_appropriate_deepseek_prompt(prompt_type)
         else:
             # Use generic templates for other models
             return MCQInconsistencyPromptTemplate().return_appropriate_prompt(prompt_type)
@@ -32,6 +35,13 @@ class MCQInconsistencyPromptTemplate(PromptTemplate):
         from mcq_inconsistency.prompt_templates.gemma_prompt_template import GemmaMCQInconsistencyPromptTemplate
         
         return GemmaMCQInconsistencyPromptTemplate().return_appropriate_prompt(prompt_type)
+    
+    @staticmethod
+    def return_appropriate_deepseek_prompt(prompt_type: str):
+        """Return DeepSeek-specific prompts with DeepSeek chat template format."""
+        from mcq_inconsistency.prompt_templates.deepseek_prompt_template import DeepSeekMCQInconsistencyPromptTemplate
+        
+        return DeepSeekMCQInconsistencyPromptTemplate().return_appropriate_prompt(prompt_type)
     
     def zero_shot_prompt(self) -> str:
         prompt = textwrap.dedent("""
