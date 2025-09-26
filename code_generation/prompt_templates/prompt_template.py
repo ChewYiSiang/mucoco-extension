@@ -78,6 +78,9 @@ class MCQPromptTemplate(PromptTemplate):
         # Check if it's a DeepSeek model
         elif model_name and ('deepseek' in model_name.lower() or 'DeepSeek' in model_name):
             return MCQPromptTemplate.return_appropriate_deepseek_prompt(prompt_type)
+        # Check if it's a Mistral model
+        elif model_name and ('mistral' in model_name.lower() or 'Mistral' in model_name):
+            return MCQPromptTemplate.return_appropriate_mistral_prompt(prompt_type)
         else:
             # Use generic templates for other models
             return MCQPromptTemplate().return_appropriate_prompt(prompt_type)
@@ -102,6 +105,13 @@ class MCQPromptTemplate(PromptTemplate):
         from code_generation.prompt_templates.deepseek_prompt_template import DeepSeekMCQPromptTemplate
         
         return DeepSeekMCQPromptTemplate().return_appropriate_prompt(prompt_type)
+    
+    @staticmethod
+    def return_appropriate_mistral_prompt(prompt_type: str):
+        """Return Mistral-specific prompts with Mistral chat template format."""
+        from code_generation.prompt_templates.mistral_prompt_template import MistralMCQPromptTemplate
+        
+        return MistralMCQPromptTemplate().return_appropriate_prompt(prompt_type)
     
     def zero_shot_prompt() -> str:
         prompt = textwrap.dedent("""
@@ -140,6 +150,9 @@ class OpenEndedPromptTemplate(PromptTemplate):
         # Check if it's a DeepSeek model
         elif model_name and ('deepseek' in model_name.lower() or 'DeepSeek' in model_name):
             return OpenEndedPromptTemplate.return_appropriate_deepseek_prompt(prompt_type)
+        # Check if it's a Mistral model
+        elif model_name and ('mistral' in model_name.lower() or 'Mistral' in model_name):
+            return OpenEndedPromptTemplate.return_appropriate_mistral_prompt(prompt_type)
         else:
             # Use generic templates for other models
             return OpenEndedPromptTemplate().return_appropriate_prompt(prompt_type)
@@ -167,6 +180,13 @@ class OpenEndedPromptTemplate(PromptTemplate):
         from code_generation.prompt_templates.deepseek_prompt_template import DeepSeekOpenEndedPromptTemplate
         
         return DeepSeekOpenEndedPromptTemplate().return_appropriate_prompt(prompt_type)
+    
+    @staticmethod
+    def return_appropriate_mistral_prompt(prompt_type: str):
+        """Return Mistral-specific prompts with Mistral chat template format."""
+        from code_generation.prompt_templates.mistral_prompt_template import MistralOpenEndedPromptTemplate
+        
+        return MistralOpenEndedPromptTemplate().return_appropriate_prompt(prompt_type)
     
     def zero_shot_prompt(self) -> str:
         prompt = textwrap.dedent("""
