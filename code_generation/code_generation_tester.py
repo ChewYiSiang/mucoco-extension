@@ -96,11 +96,18 @@ class CodeGenerationTester(Tester):
 
     @staticmethod
     def process_llm_ans(text: str) -> str:
+        # Clean chat template tokens
+        chat_tokens = ['<|im_start|>', '<|im_end|>', '<|begin_of_text|>', '<|start_header_id|>', 
+                      '<|end_header_id|>', '<|eot_id|>', 'system', 'user', 'assistant']
+        for token in chat_tokens:
+            text = text.replace(token, '')
+        
         match = re.search(r"```(?:python)?\n(.*?)```", text, re.DOTALL)
         if match:
             return match.group(1).strip()
         else:
-            raise ValueError("No code block found")
+            # If no code block, return cleaned text directly
+            return text.strip()
             
     def run_code_generation_test(
             self, 
