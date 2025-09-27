@@ -207,6 +207,8 @@ class TurbulenceTester(CodeGenerationTester):
                             func_output = processed_func_output
                             )
                         
+                        print('oki')
+                        
                         log_data_entry['func_output'] = processed_func_output
 
                         # Verification Step 2: Verifying LLM answer with test suite
@@ -214,6 +216,8 @@ class TurbulenceTester(CodeGenerationTester):
                             tests = codemutator.mutated_dict['check_function'],
                             solution = ans,
                         )
+
+                        print('no oki')
                         
                         task_pass_count += 1
 
@@ -432,7 +436,7 @@ class TurbulenceTester(CodeGenerationTester):
                     )
                 
                 except Exception as e:
-                    log_data_entry["failure_type"] = (LLMExecutionRuntimeError.__name__, type(e))
+                    log_data_entry["failure_type"] = f"{type(e)} > {e}"
                     TurbulenceTester.log_into_csv(output_file_path = output_file_path, input_data = log_data_entry)
                     continue
 

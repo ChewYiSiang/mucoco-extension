@@ -183,8 +183,6 @@ class CodeMutator:
         canon_ans: Any,
         ):
 
-        print(func_output)
-        print(canon_ans)
         class MatrixNodeVisitor(ast.NodeVisitor):
             def __init__(self):
                 self.contains_np_matrix = False
@@ -213,7 +211,9 @@ class CodeMutator:
 
             else:
                 assert canon_ans == func_output
-        except Exception as e:
+        except (ValueError, AssertionError) as e:
+            raise AssertionError()
+        except (Exception) as e:
             raise e
 
 
@@ -511,7 +511,7 @@ class CodeMutator:
             self.mutated_dict['full_sol'] = mutated_sol
 
         except Exception as e:
-            print("Error at handle_mutation()")
+            print(f"Error at handle_mutation(): {type(e)}")
             raise e
         
     

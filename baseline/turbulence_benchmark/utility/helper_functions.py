@@ -236,7 +236,9 @@ class TurbulenceBenchmarkHelper:
         ) -> None:
         
         canon_ans = self._obtain_program_answer(program=canonical_sol, func_input=func_input, func_name=func_name)
-
+        print('-'*50)
+        print(func_input)
+        print('='*50)
         CodeMutator.verify_with_canon_ans(func_output=func_output, canon_ans=canon_ans)
         
     def verify_prog_output(

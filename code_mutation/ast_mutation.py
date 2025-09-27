@@ -1,6 +1,8 @@
 import ast
 import random
 from typing import Dict, Tuple
+from collections.abc import Iterable
+
 
 class ASTNodeHelper:
     """
@@ -172,12 +174,10 @@ class ASTNodeHelper:
                 elif isinstance(node.func, ast.Attribute) and node.func.attr == "count":
                     return int.__name__
                 
-
-            
             ## If statement checking for scenario 3 -> E.g.: i = var1
             #  The if statement also checks if the variable type has already been stored in the metadata_map and retrieves the variable type directly
             elif isinstance(node, ast.Name) and self.metadata_map.get(node.id, None) is not None:
-                return self.metadata_map[node.id]
+                return eval(self.metadata_map[node.id])
                 
             elif isinstance(node, ast.BinOp):     
                 if isinstance(node.left, (ast.List, ast.Tuple)) or isinstance(node.right, (ast.List, ast.Tuple)):
@@ -188,7 +188,7 @@ class ASTNodeHelper:
                     return var_type
                 
                 elif isinstance(node.right, (ast.Name)):
-                    return self.metadata_map.get(node.right.id, None)
+                    return eval(self.metadata_map.get(node.right.id, None))
 
             elif isinstance(node, ast.IfExp):
                 if isinstance(node.body, ast.UnaryOp):
@@ -196,6 +196,34 @@ class ASTNodeHelper:
                 else:
                     return self.obtain_data_type(node.body)
                 
+            elif isinstance(node, ast.Subscript):
+                print('Yes ye syeyeyssy')
+                if not isinstance(node.value, ast.Name):
+                    return None
+                value = node.value.id
+                var = self.metadata_map.get(value, "not_in_metadata")
+
+                if var == "not_in_metadata" or not isinstance(var, Iterable):
+                    return None
+
+
+                if isinstance(node.slice, ast.Constant) and  isinstance(node.slice.value, int):
+                    slice = node.slice.value
+                    return eval(var)[slice]
+                
+                elif isinstance(node.slice, ast.Slice):                        
+                    upper = 0 if node.slice.upper == None else node.slice.upper
+                    lower = 0 if node.slice.lower == None else node.slice.lower
+                    step = 0 if node.slice.step == None else node.slice.step
+
+                    if any(not isinstance(slice, ast.Constant) for slice in [upper, lower, step]):
+                        return None
+                    
+                    return eval(var)[upper:lower:step]
+
+                else:
+                    pass
+
             ## None returned for nodes out of the scope of this method
             return None
 
@@ -522,6 +550,8 @@ class ASTNodeHelper:
             self.target_name = target_name
 
             func_args = self.find_iteration(raw_func_args)
+
+            print(func_args)
             ## Updating the start, step, if necessary
             if isinstance(func_args, list):
                 if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == 'enumerate' and len(node.iter.args) > 1:    # handling edge cases like for idx, ele in enumerate(list, 1)
@@ -557,7 +587,7 @@ class ASTNodeHelper:
             ## Setting up the iteration node used in the while loop
             ## The first if condition looks for the following cases:
             ##      ast.BinOp: for i in (3+10)     -> while i < (3+10)
-            ##      ast.Call: for i range(len('hello')) -> while i < len('hello')
+            ##      ast.Call: for i in range(len('hello')) -> while i < len('hello')
             ##      ast.Constant: for s in some_string  -> while i < len(some_string)
             ## Do note that only ast.Call on 'range' functions are rejected here.
             if isinstance(func_args, ast.Call):
@@ -674,6 +704,8 @@ class ASTNodeHelper:
                 iter_node = ast.Name(id = func_arg_len, ctx = ast.Load())
 
             else:                            
+                print('ok')
+                print(func_args)
                 iter_node = ast.Call(
                         func = ast.Name(id = 'len'),
                         args= [(ast.Name(str(func_args)) if not isinstance(func_args, (ast.Subscript, ast.Call, ast.Name)) else func_args)],           # ast.Subscript will be len(func_args[:-1]), while the rest will be len(func_args)
