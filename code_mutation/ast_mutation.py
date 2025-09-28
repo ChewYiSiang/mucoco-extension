@@ -100,8 +100,14 @@ class ASTNodeHelper:
 
         def visit_BinOp(self, node):
             if isinstance(node.op, (ast.Add, ast.Mult)):
-                self.commutative_operation_exists = True
-                return # early return if + or * detected
+                # Only allow simple numeric operations (constants and simple variable names)
+                def is_simple_numeric(n):
+                    return (isinstance(n, ast.Constant) and isinstance(n.value, (int, float))) or isinstance(n, ast.Name)
+                
+                if is_simple_numeric(node.left) and is_simple_numeric(node.right):
+                    self.commutative_operation_exists = True
+                    return
+            self.generic_visit(node)
 
     class ConstantUnfoldDetectorNodeVisitor(ast.NodeVisitor):
         """
