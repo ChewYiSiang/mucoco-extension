@@ -18,6 +18,9 @@ class MCQInconsistencyPromptTemplate(PromptTemplate):
         # Check if it's a Mistral model
         elif model_name and ('mistral' in model_name.lower() or 'Mistral' in model_name):
             return MCQInconsistencyPromptTemplate.return_appropriate_mistral_prompt(prompt_type)
+        # Check if it's a Llama model
+        elif model_name and ('llama' in model_name.lower() or 'Llama' in model_name):
+            return MCQInconsistencyPromptTemplate.return_appropriate_llama_prompt(prompt_type)
         else:
             # Use generic templates for other models
             return MCQInconsistencyPromptTemplate().return_appropriate_prompt(prompt_type)
@@ -52,6 +55,13 @@ class MCQInconsistencyPromptTemplate(PromptTemplate):
         from mcq_inconsistency.prompt_templates.mistral_prompt_template import MistralMCQInconsistencyPromptTemplate
         
         return MistralMCQInconsistencyPromptTemplate().return_appropriate_prompt(prompt_type)
+    
+    @staticmethod
+    def return_appropriate_llama_prompt(prompt_type: str):
+        """Return Llama-specific prompts with Llama 3.1 chat template format."""
+        from mcq_inconsistency.prompt_templates.llama_prompt_template import LlamaMCQInconsistencyPromptTemplate
+        
+        return LlamaMCQInconsistencyPromptTemplate().return_appropriate_prompt(prompt_type)
     
     def zero_shot_prompt(self) -> str:
         prompt = textwrap.dedent("""
