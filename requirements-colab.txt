@@ -1,6 +1,6 @@
 # Core ML/AI packages - use compatible versions
-torch==2.7.1
-torchvision==0.22.1
+torch==2.1.2
+torchvision==0.16.2
 transformers>=4.40.0
 accelerate>=1.0.0
 datasets>=3.0.0
@@ -114,7 +114,7 @@ fonttools==4.59.0
 frozenlist==1.7.0
 fsspec==2025.3.0
 gast==0.6.0
-gensim==4.3.3
+gensim==4.3.2
 geographiclib==2.0
 geopandas==1.1.1
 geopy==2.4.1
