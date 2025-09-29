@@ -195,7 +195,7 @@ def save_results_to_csv(all_results, reference_name, output_file="comparison_res
     # Convert to DataFrame and save
     df = pd.DataFrame(csv_data)
     df.to_csv(output_file, index=False)
-    print(f"\n📊 Results saved to: {output_file}")
+    print(f"\nResults saved to: {output_file}")
     return output_file
 
 def print_detailed_stats(stats, reference_name, comparison_name):
@@ -227,9 +227,9 @@ def print_detailed_stats(stats, reference_name, comparison_name):
         total_outcomes = (stats['both_succeeded'] + stats['both_failed_assertion'] + 
                          stats['both_failed_other'] + stats['ref_succeeded_comp_failed'] + 
                          stats['ref_failed_comp_succeeded'])
-        print(f"\n🐛 DEBUG: Total outcome counts: {total_outcomes} (should equal {mutable})")
+        print(f"DEBUG: Total outcome counts: {total_outcomes} (should equal {mutable})")
         if total_outcomes != mutable:
-            print(f"❌ ERROR: Counts don't match! Difference: {total_outcomes - mutable}")
+            print(f"ERROR: Counts don't match! Difference: {total_outcomes - mutable}")
         
         # Inconsistencies (traditional metric) - clearer explanation
         total_inconsistencies = stats['ref_succeeded_comp_failed'] + stats['ref_failed_comp_succeeded']
@@ -283,10 +283,10 @@ def print_detailed_stats(stats, reference_name, comparison_name):
 
 def main():
     # Reference file (the one to compare all others against)
-    reference_path = "results/Llama/Output_Prediction/HumanEval/HumanEval_few_shot_no_mutation3.csv"
+    reference_path = "results/Gemma/CruxEval_output_gemma/CruxEval_zero_shot_no_mutation.csv"
     
     # Directory containing files to compare
-    comparison_dir = "results/Llama/Output_Prediction/HumanEval"
+    comparison_dir = "results/Gemma/CruxEval_output_gemma"
     
     print("=" * 80)
     print("ENHANCED LLAMA INPUT PREDICTION COMPARISON")
