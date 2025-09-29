@@ -22,11 +22,14 @@ class MistralPredictionInconsistencyPromptTemplate:
                 Rules:
                 - Return ONLY the expected output value
                 - No explanations, comments, or additional text
+                - No periods, punctuation, or extra formatting
                 - Format the output exactly as Python would print it
+                - For single characters/letters, return just the character: A (not A.)
                 - For lists/tuples, use exact Python syntax: [(1, 2), (3, 4)]
                 - For strings, include quotes if they would be in the output
                 - For booleans, return True or False
                 - For numbers, return the exact numeric value
+                - Do not include type information or tuple representations
 
                 {qn_desc}
 
@@ -47,8 +50,11 @@ class MistralPredictionInconsistencyPromptTemplate:
                 Rules:
                 - Return ONLY the expected output value
                 - No explanations, comments, or additional text
+                - No periods, punctuation, or extra formatting
                 - Format the output exactly as Python would print it
+                - For single characters/letters, return just the character: A (not A.)
                 - Use the provided example to understand the expected format
+                - Do not include type information or tuple representations
 
                 {qn_desc}
 
@@ -72,8 +78,11 @@ class MistralPredictionInconsistencyPromptTemplate:
                 Rules:
                 - Return ONLY the expected output value
                 - No explanations, comments, or additional text
+                - No periods, punctuation, or extra formatting
                 - Format the output exactly as Python would print it
+                - For single characters/letters, return just the character: A (not A.)
                 - Use the provided examples to understand the expected format
+                - Do not include type information or tuple representations
 
                 {qn_desc}
 

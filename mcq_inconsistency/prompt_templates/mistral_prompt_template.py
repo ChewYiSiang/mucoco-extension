@@ -6,7 +6,13 @@ class MistralMCQInconsistencyPromptTemplate(PromptTemplate):
     
     def zero_shot_prompt(self) -> str:
         prompt = textwrap.dedent("""
-            <s>[INST] You are given a code snippet, a description of the code and several choices. Choose the correct option that completes the code snippet based on the question description. Your answer should only be the alphabet corresponding to the option i.e.: A, B, C, etc. Do not give any additional details.
+            <s>[INST] You are given a code snippet, a description of the code and several choices. Choose the correct option that completes the code snippet based on the question description. Your answer should only be the alphabet corresponding to the option i.e.: A, B, C, etc. 
+            
+            Rules:
+            - Return ONLY the single letter (A, B, C, etc.)
+            - No periods, punctuation, or extra formatting
+            - No explanations, comments, or additional text
+            - Do not include type information or tuple representations
 
             {qn_desc}
                         
@@ -22,7 +28,13 @@ class MistralMCQInconsistencyPromptTemplate(PromptTemplate):
         
     def one_shot_prompt(self) -> str:
         prompt = textwrap.dedent("""
-            <s>[INST] You are given a code snippet, a description of the code, an example and several choices. Choose the correct option that completes the code snippet based on the question description. Your answer should only be the alphabet corresponding to the option i.e.: A, B, C etc. You may use the example to help answer the question. Do not give any additional details.
+            <s>[INST] You are given a code snippet, a description of the code, an example and several choices. Choose the correct option that completes the code snippet based on the question description. Your answer should only be the alphabet corresponding to the option i.e.: A, B, C etc. You may use the example to help answer the question.
+            
+            Rules:
+            - Return ONLY the single letter (A, B, C, etc.)
+            - No periods, punctuation, or extra formatting
+            - No explanations, comments, or additional text
+            - Do not include type information or tuple representations
 
             {qn_desc}
                         
@@ -41,7 +53,13 @@ class MistralMCQInconsistencyPromptTemplate(PromptTemplate):
     
     def few_shot_prompt(self) -> str:
         prompt = textwrap.dedent("""
-            <s>[INST] You are given a code snippet, a description of the code, some examples and several choices. Choose the correct option that completes the code snippet based on the question description. Your answer should only be the alphabet corresponding to the option i.e.: A, B, C etc. You may use the examples to help answer the question. Do not give any additional details.
+            <s>[INST] You are given a code snippet, a description of the code, some examples and several choices. Choose the correct option that completes the code snippet based on the question description. Your answer should only be the alphabet corresponding to the option i.e.: A, B, C etc. You may use the examples to help answer the question.
+            
+            Rules:
+            - Return ONLY the single letter (A, B, C, etc.)
+            - No periods, punctuation, or extra formatting
+            - No explanations, comments, or additional text
+            - Do not include type information or tuple representations
 
             {qn_desc}
                         
