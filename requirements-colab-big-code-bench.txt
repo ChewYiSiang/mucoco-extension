@@ -21,6 +21,7 @@ huggingface-hub>=0.34.0
 
 # Data processing - use versions compatible with Colab
 pandas>=2.2.0,<2.3.0  # Stick to Colab's pandas version
+numpy>=1.24.0,<2.0.0  # Force NumPy 1.x for compatibility
 pyarrow>=14.0.0,<20.0.0  # Compatible with cudf
 
 # Database and storage

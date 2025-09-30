@@ -245,40 +245,40 @@ class OpenEndedPromptTemplate(PromptTemplate):
         return prompt
 
 class LlamaOpenEndedPromptTemplate(OpenEndedPromptTemplate):
-    def zero_shot_prompt():
+    def zero_shot_prompt(self):
         prompt = textwrap.dedent("""
             <|begin_of_text|><|start_header_id|>system<|end_header_id|>
-            # Complete the given code snippet using the description below. Only complete the code function and do not add any other details.
+            You are a Python coding assistant. Complete the given function implementation. Only provide the complete function code without any explanations, comments, test cases, or additional text. Do not include any tokens like <|end_of_text|> in your response.
             {task}<|eot_id|>
                                  
             <|start_header_id|>user<|end_header_id|>
-            # Code Snippet:
+            Complete this function:
+            
             {code}<|eot_id|>
                                  
-            # Your Answer: 
             <|start_header_id|>assistant<|end_header_id|>
         """)
         return prompt
 
-    def one_shot_prompt():
+    def one_shot_prompt(self):
         prompt = textwrap.dedent("""
             <|begin_of_text|><|start_header_id|>system<|end_header_id|>
-            # Complete the code for the following function given it's description. You may use the given example to write your code. Return your answer as a complete function.
+            You are a Python coding assistant. Complete the given function implementation. Only provide the complete function code without any explanations, comments, test cases, or additional text. Do not include any tokens like <|end_of_text|> in your response.
             {task}<|eot_id|>
                                  
             <|start_header_id|>user<|end_header_id|>
-            # Code Snippet:
+            Complete this function:
+            
             {code}
-                                 
-            # Example:
+            
+            Example usage:
             {example}<|eot_id|>
                                  
-            # Your answer:
             <|start_header_id|>assistant<|end_header_id|>
         """)
         return prompt
 
-    def few_shot_prompt():
+    def few_shot_prompt(self):
         prompt = textwrap.dedent("""
             <|begin_of_text|><|start_header_id|>system<|end_header_id|>
             # Complete the code for the following function given it's description. You may use the given examples to write your code. Return your answer as a complete function.
