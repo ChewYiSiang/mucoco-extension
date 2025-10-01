@@ -428,14 +428,12 @@ class TurbulenceTester(CodeGenerationTester):
 
                 # Running the llm on the input variables and the prompt template
                 try: 
-                    # ans = self.execute_llm(
-                    #     input_variables = input_variables, 
-                    #     prompt_template = prediction_prompt_template, 
-                    #     llm_model = llm, 
-                    #     model_name=model_name
-                    # )
-                
-                    ans = "Passed"
+                    ans = self.execute_llm(
+                        input_variables = input_variables, 
+                        prompt_template = prediction_prompt_template, 
+                        llm_model = llm, 
+                        model_name=model_name
+                    )
                 except Exception as e:
                     log_data_entry["failure_type"] = f"{type(e)} > {e}"
                     TurbulenceTester.log_into_csv(output_file_path = output_file_path, input_data = log_data_entry)

@@ -231,20 +231,19 @@ class LLMConsistencyTester(CodeGenerationTester):
                     if task_type == InputPrediction.NAME:
                         log_entry['geometric'] = ans_dict["geom_mean_prob"]
                 else: 
-                    # try:
-                    #     ans = self.execute_llm(
-                    #         input_variables=input_variables,
-                    #         prompt_template=prompt_template,
-                    #         llm_model=llm,
-                    #         model_name=model_name
-                    #     )
-                    # except Exception as e:
-                    #     log_entry['failure_type'] = f"{type(e).__name__} > {e}"
-                    #     LLMConsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
-                    #     continue
+                    try:
+                        ans = self.execute_llm(
+                            input_variables=input_variables,
+                            prompt_template=prompt_template,
+                            llm_model=llm,
+                            model_name=model_name
+                        )
+                    except Exception as e:
+                        log_entry['failure_type'] = f"{type(e).__name__} > {e}"
+                        LLMConsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
+                        continue
 
-                    # ans = LLMConsistencyTester.process_llm_ans(ans)
-                    ans = "Passed"
+                    ans = LLMConsistencyTester.process_llm_ans(ans)
                 
                     log_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
                     
