@@ -153,8 +153,6 @@ class LLMConsistencyTester(CodeGenerationTester):
                 
                 ## Processing of output args and metadata
                 output_args = ast.literal_eval(output_args) if output_metadata != str.__name__ else output_args
-
-                print('a')
                                         
                 ## Sanity Check to ensure that the complete solution passes the check functions
                 check_soln_validity = PredictionInconsistencyHumanEvalHelper.check_input_output(
@@ -185,7 +183,6 @@ class LLMConsistencyTester(CodeGenerationTester):
                 )
                 
                 ## Handling Task Mutation (If any)
-                print('b')
                 try: 
                     for mutation_type in mutations:
                         codemutator.mutate_for_prediction_inconsistency_test(

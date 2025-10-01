@@ -435,8 +435,6 @@ class CodeMutator:
         
         ## Checking that the mutated solution still passes the check function 
         try:
-            print("This is full_sol:")
-            print(mutated_full_sol)
             multiprocessing_queue = multiprocessing.Queue()
 
             verify_answer_process = multiprocessing.Process(        
@@ -472,21 +470,17 @@ class CodeMutator:
         logical_mutations = [getattr(Mutations.LogicalMutations, m) for m in dir(Mutations.LogicalMutations) if not m.startswith("__")]
         lexical_mutations = [getattr(Mutations.LexicalMutations, m) for m in dir(Mutations.LexicalMutations) if not m.startswith("__")]
         syntactic_mutations = [getattr(Mutations.SyntacticMutations, m) for m in dir(Mutations.SyntacticMutations) if not m.startswith("__")]
-        print(mutation_type)
         try:
             if mutation_type in syntactic_mutations:
                 full_sol = self.mutated_dict['question']
                 examples = self.mutated_dict.get('examples', None)
                 if mutation_type == FOR2WHILE:
                     if task_set in (HUMANEVAL, CODEMMLU):
-                        print(1)
                         input_metadata = PredictionInconsistencyHumanEvalHelper.extract_input_metadata(examples = examples, qn = full_sol)
                     elif task_set in (CRUXEVAL, TURBULENCE):
                         input_metadata = PredictionInconsistencyCruxEvalHelper.extract_input_metadata(prog=full_sol, test_input=input_args)
-                    print(2)
                     variable_metadata = CodeMutator.obtain_variable_types(tree, input_metadata)
                     merged_metadata = input_metadata | variable_metadata
-                    print(3)
                     mutated_sol = CodeMutator.mutate_for_to_while(tree = tree, input_metadata=merged_metadata)  
                     # print(full_sol)
                     # print(mutated_sol)

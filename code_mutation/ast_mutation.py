@@ -221,7 +221,15 @@ class ASTNodeHelper:
             #  The if statement also checks if the variable type has already been stored in the metadata_map and retrieves the variable type directly
             elif isinstance(node, ast.Name) and self.metadata_map.get(node.id, None) is not None:
                 stored_metadata = self.metadata_map[node.id]
-                if stored_metadata == type(None).__name__:
+                if stored_metadata in (
+                        list.__name__,
+                        str.__name__,
+                        tuple.__name__,
+                        dict.__name__,
+                        int.__name__,
+                        float.__name__,
+                        type(None).__name__
+                    ):
                     return stored_metadata
                 else:
                     return eval(self.metadata_map[node.id])
@@ -295,6 +303,7 @@ class ASTNodeHelper:
                 var_name = node.targets[0].id
                 var_type = self.obtain_data_type(node.value)
                 self.metadata_map[var_name] = var_type
+
 
         def visit_For(self, node):
             if isinstance(node.target, ast.Name):
@@ -611,10 +620,9 @@ class ASTNodeHelper:
 
             # storing the name of the counter in this instance
             self.target_name = target_name
-
             func_args = self.find_iteration(raw_func_args)
-            print(4)
-            print(func_args)
+
+
             ## Updating the start, step, if necessary
             if isinstance(func_args, list):
                 if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == 'enumerate' and len(node.iter.args) > 1:    # handling edge cases like for idx, ele in enumerate(list, 1)
@@ -629,7 +637,6 @@ class ASTNodeHelper:
             if step < 0:
                 increment = False
                 
-            print('4.1')
             ## Establishing the counter for the while loop
             #       E.g.: i = 0
             init_assign = ast.Assign(
@@ -644,6 +651,12 @@ class ASTNodeHelper:
             ast.fix_missing_locations(init_assign)
             func_arg_type = self.input_metadata.get(func_args, None)
 
+            if isinstance(func_arg_type, str) and func_arg_type.startswith("list"):
+                try:
+                    func_arg_type = type(eval(func_arg_type)).__name__
+                except:
+                    pass
+
             # updating the input_metadata dict with the new variable assignment
             self.input_metadata[target_name] = int.__name__
 
@@ -653,8 +666,7 @@ class ASTNodeHelper:
             ##      ast.Call: for i in range(len('hello')) -> while i < len('hello')
             ##      ast.Constant: for s in some_string  -> while i < len(some_string)
             ## Do note that only ast.Call on 'range' functions are rejected here.
-            print(5)
-            print(func_args)
+
             if isinstance(func_args, ast.Call):
                 if isinstance(func_args.func, ast.Name) and func_args.func.id == 'zip':
                     len_nodes = []
@@ -775,7 +787,6 @@ class ASTNodeHelper:
                         keywords=[]
                 )
 
-            print(6)
 
             ## Setting up the comparison node in the while loop
             #       E.g.: while i < 10:

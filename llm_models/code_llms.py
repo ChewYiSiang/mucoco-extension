@@ -57,34 +57,6 @@ class OpenAILLM(CodeLLM):
             temperature=0,
         )
         return result.output_text
-    
-class DeepSeekLLM(CodeLLM):
-    def __init__(self, model_name: str = 'deepseek-chat'):
-        self.model_name = model_name
-        self.client = OpenAI(api_key = os.environ.get('DEEPSEEK_API_KEY'), base_url="https://api.deepseek.com")
-
-    def return_system_prompt(self) -> str:
-        system_prompt = """You are a coding assistant. 
-    Follow the task strictly:
-    - Only complete the given code snippet based on the task description. 
-    - Do not output explanations, comments, or extra text unless explicitly part of the code. 
-    - Always return valid Python code. 
-    - Preserve indentation exactly as in the snippet provided.
-    - Do not wrap the code in Markdown fences (```)."""
-        return system_prompt
-    
-    def invoke(self, input_variables, prompt_template):
-        prompt = prompt_template.format(**input_variables)
-
-        response = self.client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[
-                {"role": "system", "content": self.return_system_prompt()},
-                {"role": "user", "content": prompt},
-            ],
-            stream=False
-        )
-        return response.choices[0].message.content
 
 class MistralGPU(CodeLLM):
     def __init__(self, model_name):
@@ -92,23 +64,3 @@ class MistralGPU(CodeLLM):
 
 if __name__ == "__main__":
     load_dotenv()
-    llm = DeepSeekLLM()
-    x = llm.invoke({"d": """# You are given a code snippet, a description of the code and the input. Return the expected output in your answer. Your answer should only contain the expected output with no additional information. 
-
-
-# Code Snippet
-def f(w):
-    ls = list(w)
-    omw = ''
-    while len(ls) > 0 + 0:
-        omw += ls.pop(0 + 0)
-        if len(ls) * (1 + 1) > len(w):
-            return w[len(ls):] == omw
-    return 0 + 0
-
-# Input
-"flak"
-
-# Expected Output:                      
-### Your answer"""}, "{d}")
-    print(x)

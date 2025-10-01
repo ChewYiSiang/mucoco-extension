@@ -349,8 +349,6 @@ class CodeGenerationTester(Tester):
 
                 # logging completed run into csv 
                 CodeGenerationTester.log_into_csv(output_file_path = output_file_path, input_data = log_data_entry)
-
-                time.sleep(2)
                 
             return task_pass_count
         except Exception as e:

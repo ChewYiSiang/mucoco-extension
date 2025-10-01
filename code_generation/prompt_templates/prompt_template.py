@@ -90,7 +90,7 @@ class OpenEndedPromptTemplate(PromptTemplate):
         prompt = textwrap.dedent("""
         # Complete the given code snippet using the description below. 
         # Complete the function body and do not add any explanations or extra text. 
-        # Return all code snippet in your answer. 
+        # Return the given code snippet in your answer. 
         # Preserve indentation.
 
         ### Example:
@@ -191,6 +191,41 @@ class LlamaOpenEndedPromptTemplate(OpenEndedPromptTemplate):
                                  
             # Your answer:
             <|start_header_id|>assistant<|end_header_id|>
+        """)
+        return prompt
+    
+class DeepSeekOpenEndedPromptTemplate(OpenEndedPromptTemplate):
+    def zero_shot_prompt(self):
+        return super().zero_shot_prompt()
+    
+    def one_shot_prompt(self):
+        return super().one_shot_prompt()
+    
+    def few_shot_prompt(self):
+        prompt = textwrap.dedent("""
+            # Complete the code for the following function given it's description. You may use the given examples to write your code. Return your answer as a complete function, along with any given code snippet.
+            ### Example:
+
+            # Task
+            Return a function that returns the largest integer in a list.
+
+            # Code Snippet
+            def find_max(nums):
+
+            # Your Answer
+            def find_max(nums):
+                return max(nums)
+
+            ### Task:
+            {task}
+
+            ## Examples:
+            {example}
+                                 
+            ### Code Snippet:
+            {code}
+
+            # Your Answer:
         """)
         return prompt
 
