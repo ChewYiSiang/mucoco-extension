@@ -103,7 +103,6 @@ class LLMConsistencyTester(CodeGenerationTester):
                     continue
 
                 prompt_template = prompt_helper()
-            
                 full_sol = qn_sample['full_sol']                    # full canonical solution for the task
                 qn_desc = qn_sample.get('qn_desc', "")              # task description. This should be the extracted doc string from the original task
                 examples = qn_sample.get('examples', {})            # examples for other prompt techniques like one shot, few shot
@@ -154,6 +153,8 @@ class LLMConsistencyTester(CodeGenerationTester):
                 
                 ## Processing of output args and metadata
                 output_args = ast.literal_eval(output_args) if output_metadata != str.__name__ else output_args
+
+                print('a')
                                         
                 ## Sanity Check to ensure that the complete solution passes the check functions
                 check_soln_validity = PredictionInconsistencyHumanEvalHelper.check_input_output(
@@ -184,6 +185,7 @@ class LLMConsistencyTester(CodeGenerationTester):
                 )
                 
                 ## Handling Task Mutation (If any)
+                print('b')
                 try: 
                     for mutation_type in mutations:
                         codemutator.mutate_for_prediction_inconsistency_test(
@@ -194,7 +196,6 @@ class LLMConsistencyTester(CodeGenerationTester):
                             task_set = task_set
                         )
                         
-
                 except Exception as e:
                     # If no mutation was requested, treat as unexpected error and continue
                     log_entry['failure_type'] = f"{type(e).__name__} > {e}"
@@ -230,24 +231,23 @@ class LLMConsistencyTester(CodeGenerationTester):
                     if task_type == InputPrediction.NAME:
                         log_entry['geometric'] = ans_dict["geom_mean_prob"]
                 else: 
-                    try:
-                        ans = self.execute_llm(
-                            input_variables=input_variables,
-                            prompt_template=prompt_template,
-                            llm_model=llm,
-                            model_name=model_name
-                        )
-                    except Exception as e:
-                        log_entry['failure_type'] = f"{type(e).__name__} > {e}"
-                        LLMConsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
-                        continue
+                    # try:
+                    #     ans = self.execute_llm(
+                    #         input_variables=input_variables,
+                    #         prompt_template=prompt_template,
+                    #         llm_model=llm,
+                    #         model_name=model_name
+                    #     )
+                    # except Exception as e:
+                    #     log_entry['failure_type'] = f"{type(e).__name__} > {e}"
+                    #     LLMConsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
+                    #     continue
 
-                    ans = LLMConsistencyTester.process_llm_ans(ans)
+                    # ans = LLMConsistencyTester.process_llm_ans(ans)
+                    ans = "Passed"
                 
                     log_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
                     
-                    time.sleep(2)
-
                 ## Running the formatted prompt into the LLM
                 try:
                     if task_type == Tasks.OutputPrediction.NAME:
