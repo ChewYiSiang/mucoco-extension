@@ -1,10 +1,7 @@
-from langchain_community.chat_models import ChatOpenAI
 from llm_models.code_llms import CodeLLM
 from typing import Dict
-from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
-import string
-import ast
+import anthropic
 from dotenv import load_dotenv
 import os
 from openai import OpenAI
@@ -52,3 +49,31 @@ class DeepSeekReasonerLLM(CodeReasoningLLM):
             temperature=0,
         )
         return response.choices[0].message.content
+
+class ClaudeReasoningLLM(CodeReasoningLLM):
+    def __init__(self, model_name):
+        self.model_name = model_name
+        self.client = anthropic.Anthropic()
+    
+    def invoke(self, input_variables, prompt_template):
+        prompt = prompt_template.format(**input_variables)
+
+        message = self.client.messages.create(
+            model=self.model_name,
+            max_tokens=1000,
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0
+        )
+
+        return message.content[0].text
+    
+
+if __name__ == "__main__":
+    load_dotenv()
+    l = ClaudeReasoningLLM("claude-sonnet-4-5-20250929")
+    l.invoke({"d": "What's 1 + 2?"}, "{d}")

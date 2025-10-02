@@ -2,6 +2,7 @@ import ast
 import random
 from typing import Dict, Tuple
 from collections.abc import Iterable
+from utility.constants import Seed
 
 
 class ASTNodeHelper:
@@ -1065,7 +1066,7 @@ class ASTNodeHelper:
             
             if isinstance(node.value, int) and node.value > 1:
                 # Randomly choose how to unfold the constant
-                random.seed(1234)
+                random.seed(Seed.value)
                 unfold_type = random.choice(['add', 'mult'])
                 
                 if unfold_type == 'add':

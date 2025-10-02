@@ -11,7 +11,7 @@ from prediction_inconsistency.utility.humaneval_helper import PredictionInconsis
 from prediction_inconsistency.utility.cruxeval_helper import PredictionInconsistencyCruxEvalHelper
 from mcq_inconsistency.utility.codemmlu_helper import CodeGenerationCodeMMLUHelper
 
-from utility.constants import Mutations, CodeMMLU, MCQInconsistency, CodeGeneration, Benchmarks
+from utility.constants import Mutations, CodeMMLU, MCQInconsistency, CodeGeneration, Benchmarks, Seed
 
 # Declaring mutation names
 FOR2WHILE = Mutations.SyntacticMutations.FOR2WHILE
@@ -66,7 +66,7 @@ def run_llm_answer(
         """
         
         namespace = {}
-        random.seed(1234)
+        random.seed(Seed.value)
 
         try:
             # Execute the mutated code in isolated namespace

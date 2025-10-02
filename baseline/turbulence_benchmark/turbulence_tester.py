@@ -1,7 +1,7 @@
 from baseline.turbulence_benchmark.utility.helper_functions import TurbulenceBenchmarkHelper
 from code_generation.code_generation_tester import CodeGenerationTester, LLMExecutionRuntimeError
 from typing import List, Callable, Any
-from utility.constants import CodeGeneration, ReasoningModels, NonReasoningModels, LexicalMutations, SamplingMethods, Turbulence, InputPrediction, OutputPrediction
+from utility.constants import CodeGeneration, ReasoningModels, NonReasoningModels, LexicalMutations, SamplingMethods, Turbulence, InputPrediction, OutputPrediction, Seed
 from code_mutation.mutation_relations import check_for_mutation_conflicts
 from tqdm import tqdm
 import ast
@@ -317,7 +317,7 @@ class TurbulenceTester(CodeGenerationTester):
 
             # Sampling of tasks. There are a total of 100 variations of each tasks, which can be both cost and computationally expensive, hence conducting the experiments on a sample size is more ideal.
             if sampling_method == SamplingMethods.RANDOM:
-                random.seed(1234)
+                random.seed(Seed.value)
                 test_keys = random.choices(list(params_dict.keys()) , k = num_samples_per_task)
                 test_params = [params_dict[test_key] for test_key in test_keys]
             elif sampling_method == SamplingMethods.SYSTEMATIC:

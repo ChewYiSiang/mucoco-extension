@@ -12,6 +12,7 @@ import io
 import random
 from numpy import matrix
 import inspect
+from utility.constants import Seed
 from code_mutation.mutation_functions import run_llm_answer, CodeMutator
 
 f = io.StringIO()
@@ -24,7 +25,7 @@ def run_tests(
         error_queue: mp.Queue, 
     ) -> None:
 
-    random.seed(1234)
+    random.seed(Seed.value)
 
     with suppress(Exception) and contextlib.redirect_stdout(f):
         namespace = {}
