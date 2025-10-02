@@ -43,9 +43,9 @@ class DataLogHelper:
         # Copying the input logs
         log1_orig, log2_orig = log1.copy(), log2.copy()
 
-        ## Checking that the log1 column names are equal to log2 column names
-        if not log1.columns.equals(log2.columns):
-            raise ValueError("CSV column headers do not match.")
+        # ## Checking that the log1 column names are equal to log2 column names
+        # if not log1.columns.equals(log2.columns):
+        #     raise ValueError("CSV column headers do not match.")
         
         ## Checking that both logs have the same number of entries
         # if log1.shape[0] != log2.shape[0]:
