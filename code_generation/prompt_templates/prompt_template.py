@@ -248,7 +248,7 @@ class LlamaOpenEndedPromptTemplate(OpenEndedPromptTemplate):
     def zero_shot_prompt(self):
         prompt = textwrap.dedent("""
             <|begin_of_text|><|start_header_id|>system<|end_header_id|>
-            You are a Python coding assistant. Complete the given function implementation. Only provide the complete function code without any explanations, comments, test cases, or additional text. Do not include any tokens like <|end_of_text|> in your response.
+            You are a Python coding assistant. Complete the given function implementation. Only provide the complete function code including any necessary imports without any explanations, comments, test cases, or additional text. Do not include any tokens like <|end_of_text|> in your response.
             {task}<|eot_id|>
                                  
             <|start_header_id|>user<|end_header_id|>
@@ -263,7 +263,7 @@ class LlamaOpenEndedPromptTemplate(OpenEndedPromptTemplate):
     def one_shot_prompt(self):
         prompt = textwrap.dedent("""
             <|begin_of_text|><|start_header_id|>system<|end_header_id|>
-            You are a Python coding assistant. Complete the given function implementation. Only provide the complete function code without any explanations, comments, test cases, or additional text. Do not include any tokens like <|end_of_text|> in your response.
+            You are a Python coding assistant. Complete the given function implementation. Only provide the complete function code including any necessary imports without any explanations, comments, test cases, or additional text. Do not include any tokens like <|end_of_text|> in your response.
             {task}<|eot_id|>
                                  
             <|start_header_id|>user<|end_header_id|>
@@ -281,7 +281,7 @@ class LlamaOpenEndedPromptTemplate(OpenEndedPromptTemplate):
     def few_shot_prompt(self):
         prompt = textwrap.dedent("""
             <|begin_of_text|><|start_header_id|>system<|end_header_id|>
-            # Complete the code for the following function given it's description. You may use the given examples to write your code. Return your answer as a complete function.
+            # Complete the code for the following function given it's description. You may use the given examples to write your code. Return your answer as a complete function including any necessary imports.
             {task}<|eot_id|>
                                  
             <|start_header_id|>user<|end_header_id|>
