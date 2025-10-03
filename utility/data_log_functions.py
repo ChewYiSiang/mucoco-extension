@@ -40,10 +40,12 @@ class DataLogHelper:
                 - Should there be any changes in the future where only selected runs are logged, this function may need to be modifid accordingly. 
     
         """
+        # Copying the input logs
+        log1_orig, log2_orig = log1.copy(), log2.copy()
 
-        ## Checking that the log1 column names are equal to log2 column names
-        if not log1.columns.equals(log2.columns):
-            raise ValueError("CSV column headers do not match.")
+        # ## Checking that the log1 column names are equal to log2 column names
+        # if not log1.columns.equals(log2.columns):
+        #     raise ValueError("CSV column headers do not match.")
         
         ## Checking that both logs have the same number of entries
         # if log1.shape[0] != log2.shape[0]:
@@ -94,7 +96,6 @@ class DataLogHelper:
                 # One succeeded, one failed - this is an inconsistency
                 elif not isinstance(log2_result, float):
                     log2_inconsistencies += 1
-                    print(f"Task {task_id}: log1 succeeded, log2 failed ({log2_result})")
                 elif not isinstance(log1_result, float):
                     log1_inconsistencies +=1
 
@@ -111,15 +112,32 @@ class DataLogHelper:
         #         task = log2.loc[idx]
         #         unmatched_ids.add(task["task_id"])
 
+        mask1 = (
+            log1_orig['failure_type'].astype(str).str.contains("AssertionError", na=False)
+            & ~log1_orig['failure_type'].astype(str).str.contains("MutationCheckFailedError", na=False)
+        )
+        mask2 = (
+            log2_orig['failure_type'].astype(str).str.contains("AssertionError", na=False)
+            & ~log2_orig['failure_type'].astype(str).str.contains("MutationCheckFailedError", na=False)
+        )
+
         print(f"\n=== COMPARISON SUMMARY ===")
         print(f"Total tasks processed: {total_tasks}")
         print(f"Both succeeded: {both_succeeded}")
         print(f"Both failed: {both_failed}")
         print(f"IdenticalMutationError: {identical_mutation_errors}")
+        print(f"Log1 Assertion Errors {mask1.sum()}")
+        print(f"Log2 Assertion Errors {mask2.sum()}")
         print(f"Comparable tasks (atleast one succeeded): {tot}")
         print(f"  - Log1 failed, Log2 succeeded: {log1_inconsistencies}")
         print(f"  - Log1 succeeded, Log2 failed: {log2_inconsistencies}")
         total_inconsistencies = log1_inconsistencies + log2_inconsistencies
         print(f"Total inconsistencies: {total_inconsistencies}/{tot}")
 
-        return f"{log1_inconsistencies}/{tot}", f"{log2_inconsistencies}/{tot}"
+        # return f"{log1_inconsistencies}/{tot}", f"{log2_inconsistencies}/{tot}"
+    
+        return {
+            'log1_inconsistencies': log1_inconsistencies,
+            'log2_inconsistencies': log2_inconsistencies,
+            'total_questions': tot
+        }

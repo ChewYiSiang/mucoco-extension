@@ -1,10 +1,10 @@
 import os
+import textwrap
 from huggingface_hub import login
 from langchain_mistralai.chat_models import ChatMistralAI
 from huggingface_hub import InferenceClient
 from typing import Dict
 from langchain.prompts import ChatPromptTemplate
-import re
 from abc import ABC, abstractmethod
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -64,6 +64,3 @@ class MistralGPU(CodeLLM):
 
 if __name__ == "__main__":
     load_dotenv()
-    llm = Mistral()
-    text, tokens, avg_lp = llm.invoke({"x": "hi"}, "Say hello to {x} in one short sentence.")
-    print(text)
