@@ -5,12 +5,13 @@ import inspect
 import random
 import string
 import re
+import numpy as np
 from code_mutation.ast_mutation import ASTNodeHelper
 from prediction_inconsistency.utility.humaneval_helper import PredictionInconsistencyHumanEvalHelper
 from prediction_inconsistency.utility.cruxeval_helper import PredictionInconsistencyCruxEvalHelper
 from mcq_inconsistency.utility.codemmlu_helper import CodeGenerationCodeMMLUHelper
 
-from utility.constants import Mutations, CodeMMLU, MCQInconsistency, CodeGeneration, Benchmarks
+from utility.constants import Mutations, CodeMMLU, MCQInconsistency, CodeGeneration, Benchmarks, Seed
 
 # Declaring mutation names
 FOR2WHILE = Mutations.SyntacticMutations.FOR2WHILE
@@ -34,24 +35,58 @@ HUMANEVAL = Benchmarks.HumanEval.NAME
 CRUXEVAL = Benchmarks.CruxEval.NAME
 TURBULENCE = Benchmarks.Turbulence.NAME
 
-def run_llm_answer(mutated_sol: str, expected_output: Any, func_name: str, mp_queue: multiprocessing.Queue, test_input: Any = 'no_input'):
+# def run_llm_answer(mutated_sol: str, expected_output: Any, func_name: str, mp_queue: multiprocessing.Queue, test_input: Any = 'no_input'):
+#         """
+#         This function is used to check if an LLM's answer gives the correct output
+#         """
+#         namespace = {}
+#         try:
+#             # Execute the mutated code in isolated namespace
+#             exec(mutated_sol, namespace)
+#             sig = inspect.signature(namespace[func_name])
+#             if test_input == 'no_input':
+#                 assert namespace[func_name]() == expected_output
+#             elif len(sig.parameters) > 1 and isinstance(test_input, (list, tuple)):
+#                 assert expected_output ==  namespace[func_name](*test_input)
+#             else:
+#                 o = namespace[func_name](test_input) 
+#                 assert o == expected_output
+#         except Exception as e:
+#             mp_queue.put(e)
+
+
+def run_llm_answer(
+        prog: str, 
+        func_name: str, 
+        error_queue: multiprocessing.Queue, 
+        ans_queue: multiprocessing.Queue,
+        func_input: Any = 'no_input'):
         """
         This function is used to check if an LLM's answer gives the correct output
         """
+        
         namespace = {}
+        random.seed(Seed.value)
+
         try:
             # Execute the mutated code in isolated namespace
-            exec(mutated_sol, namespace)
+            exec(prog, namespace)
             sig = inspect.signature(namespace[func_name])
-            if test_input == 'no_input':
-                assert namespace[func_name]() == expected_output
-            elif len(sig.parameters) > 1 and isinstance(test_input, (list, tuple)):
-                assert expected_output ==  namespace[func_name](*test_input)
+            # Checking if there are any arguments like *args 
+            contains_star_arg = any(p.kind == inspect.Parameter.VAR_POSITIONAL for p in sig.parameters.values())
+            if not isinstance(func_input, np.matrix) and func_input == 'no_input':
+                prog_output = namespace[func_name]()
+            elif (len(sig.parameters) > 1 or contains_star_arg) and isinstance(func_input, (list, tuple)):
+                prog_output = namespace[func_name](*func_input)
             else:
-                o = namespace[func_name](test_input) 
-                assert o == expected_output
+                prog_output = namespace[func_name](func_input) 
+
+            ans_queue.put(prog_output)
+
         except Exception as e:
-            mp_queue.put(e)
+            error_queue.put(e)
+
+
 
 class CodeMutator:
     # Main class for applying various types of code mutations while preserving functionality.
@@ -141,6 +176,50 @@ class CodeMutator:
         except Exception as e:
             print(f"DEBUG: Semantic equivalence check failed: {e}")
             return False
+    
+    @staticmethod
+    def verify_with_canon_ans(
+        func_output: Any, 
+        canon_ans: Any,
+        ):
+
+        class MatrixNodeVisitor(ast.NodeVisitor):
+            def __init__(self):
+                self.contains_np_matrix = False
+            def visit_Call(self, node):
+                if isinstance(node.func, ast.Name) and node.func.id == np.matrix.__name__:
+                    self.contains_np_matrix = True
+
+        def _assert_identical_matrix(matrix_1, matrix_2):
+            assert all(np.array_equal(np.array(m1), np.array(m2)) for m1, m2 in zip(matrix_1, matrix_2)) and len(matrix_1) == len(matrix_2)
+        
+        try:
+            if isinstance(canon_ans, (tuple, list)):
+                tree = ast.parse(str(canon_ans))
+                matrix_visitor = MatrixNodeVisitor()
+                matrix_visitor.visit(tree)
+
+                if matrix_visitor.contains_np_matrix == True:
+                    _assert_identical_matrix(canon_ans, func_output)
+                    return
+
+
+            if isinstance(canon_ans, list) and isinstance(func_output, list):
+                try:
+                    canon_ans = sorted(canon_ans, key=lambda x: (type(x).__name__, x))
+                    func_output = sorted(func_output, key=lambda x: (type(x).__name__, x))
+                    assert canon_ans == func_output
+                # a typeerror catch is needed here in the case of sorting None values
+                except TypeError:     
+                    return sorted(canon_ans, key=str) == sorted(func_output, key=str)
+
+            else:
+                assert canon_ans == func_output
+        except (ValueError, AssertionError) as e:
+            raise AssertionError()
+        except (Exception) as e:
+            raise e
+
 
     def check_solution_validity(
         self,
@@ -148,30 +227,35 @@ class CodeMutator:
         output_args: str, 
         input_args: Any = "no_inputs", 
     ):
-        timeout = 5
-        multiprocessing_queue = multiprocessing.Queue()
-        if input_args == "no_inputs":
-            # verify_answer_process = multiprocessing.Process(target= run_llm_answer, args = (program, output_args, self.func_name, multiprocessing_queue))
+        timeout = 20
+        error_queue = multiprocessing.Queue()
+        ans_queue = multiprocessing.Queue()
+        if not isinstance(input_args, np.matrix) and input_args == "no_inputs":
             verify_answer_process = multiprocessing.Process(
                 target= run_llm_answer, 
-                kwargs = {'mutated_sol' : program,
-                        'expected_output': output_args,
+                kwargs = {'prog' : program,
                         'func_name': self.func_name,
-                        'mp_queue' : multiprocessing_queue
+                        'error_queue' : error_queue,
+                        'ans_queue': ans_queue
                         }
                 )
 
         else:
+            # print('yar')
+            # print(self.func_name)
+            # print(program)
+            # print(output_args)
+            # print(input_args)
             verify_answer_process = multiprocessing.Process(
                 target= run_llm_answer, 
-                kwargs = {'mutated_sol' : program,
-                        'expected_output': output_args,
+                kwargs = {'prog' : program,
+                        'func_input': input_args,
                         'func_name': self.func_name,
-                        'test_input': input_args,
-                        'mp_queue' : multiprocessing_queue
+                        'error_queue' : error_queue,
+                        'ans_queue': ans_queue
                         }
                 )
-
+            
         verify_answer_process.start()
 
         verify_answer_process.join(timeout=timeout)
@@ -179,9 +263,19 @@ class CodeMutator:
             verify_answer_process.kill()
             verify_answer_process.join()
             raise RuntimeError()
-        if not multiprocessing_queue.empty():
-            e = multiprocessing_queue.get()
+        if not error_queue.empty():
+            e = error_queue.get()
             raise e
+        if not ans_queue.empty():
+            prog_ans = ans_queue.get()
+        else:
+            raise ValueError("Function failed to execute or return a result")
+        
+        print('hehe', prog_ans)
+        
+        ### Answer Verification Step
+        CodeMutator.verify_with_canon_ans(func_output=prog_ans, canon_ans=output_args)
+
         
     def mutate_for_code_generation(
             self,
@@ -213,7 +307,70 @@ class CodeMutator:
             raise MutationFailedError(e)
         
         ## note : No post mutation check is conducted as it is assumed that lexical mutations should not impact the canonical solution
-        
+    
+    def check_mutation_validity(
+            self, 
+            tree: ast.AST, 
+            mutation_type: str, 
+            task_set: str, 
+            input_args: Any = None,
+        ) -> None:
+        ## Checking for any valid for loops before syntactic mutations
+        if mutation_type in (FOR2WHILE, FOR2ENUMERATE):
+            for_loop_checker = ASTNodeHelper.ForLoopDetectorNodeVisitor()
+            
+            for_loop_checker.visit(tree)
+            for_loop_exists = for_loop_checker.for_loop_exists
+            enumerate_iterator_exists = for_loop_checker.enumerator_iterator
+
+            if for_loop_exists == False:
+                raise NoForLoopError()
+            
+            elif mutation_type == FOR2ENUMERATE and enumerate_iterator_exists == True:
+                raise InvalidIteratorError(mutation_type=mutation_type)
+
+        ## Checking for any valid boolean operations before DeMorgan mutations
+        if mutation_type == DEMORGAN:
+            boolean_operation_checker = ASTNodeHelper.BooleanOperationDetectorNodeVisitor()
+            boolean_operation_checker.visit(tree)
+            boolean_operation_exists = boolean_operation_checker.boolean_operation_exists
+            if boolean_operation_exists == False:
+                raise NoBooleanOperationError()
+
+        ## Checking for any boolean literals before BOOLEAN_LITERAL mutations
+        if mutation_type == BOOLEAN_LITERAL:
+            boolean_literal_checker = ASTNodeHelper.BooleanLiteralDetectorNodeVisitor()
+            boolean_literal_checker.visit(tree)
+            boolean_literal_exists = boolean_literal_checker.boolean_literal_exists
+            if boolean_literal_exists == False:
+                raise NoBooleanLiteralError()
+
+        ## Checking for any commutative operations before COMMUTATIVE_REORDER mutations
+        if mutation_type == COMMUTATIVE_REORDER:
+            full_sol = self.mutated_dict['full_sol']
+            if task_set in (HUMANEVAL, CODEMMLU):
+                examples = self.mutated_dict['examples']
+                input_metadata = PredictionInconsistencyHumanEvalHelper.extract_input_metadata(examples = examples, qn = full_sol)
+            elif task_set in (CRUXEVAL, TURBULENCE):
+                input_metadata = PredictionInconsistencyCruxEvalHelper.extract_input_metadata(prog=full_sol, test_input=input_args)
+            variable_metadata = CodeMutator.obtain_variable_types(tree, input_metadata)
+            merged_metadata = input_metadata | variable_metadata
+            
+            commutative_operation_checker = ASTNodeHelper.CommutativeOperationDetectorNodeVisitor(metadata_dict=merged_metadata)
+            commutative_operation_checker.visit(tree)
+            commutative_operation_exists = commutative_operation_checker.commutative_operation_exists
+            if commutative_operation_exists == False:
+                raise NoCommutativeOperationError()
+
+        ## Checking for any constants to unfold before CONSTANT_UNFOLD mutations
+        if mutation_type in (CONSTANT_UNFOLD, CONSTANT_UNFOLD_ADD, CONSTANT_UNFOLD_MULT):
+            constant_unfold_checker = ASTNodeHelper.ConstantUnfoldDetectorNodeVisitor()
+            constant_unfold_checker.visit(tree)
+            constant_unfold_exists = constant_unfold_checker.constant_unfold_exists
+            if constant_unfold_exists == False:
+                raise NoConstantUnfoldError()
+
+
     def mutate_for_mcq_inconsistency(
             self,
             mutation_type:str,
@@ -250,52 +407,11 @@ class CodeMutator:
         sanitised_question = CodeMutator.parse_through_ast(tree)
         tree = ast.parse(sanitised_question)
 
-        ## Checking for any valid for loops before syntactic mutations
-        if mutation_type in (FOR2WHILE, FOR2ENUMERATE):
-            for_loop_checker = ASTNodeHelper.ForLoopDetectorNodeVisitor()
-            
-            for_loop_checker.visit(tree)
-            for_loop_exists = for_loop_checker.for_loop_exists
-            enumerate_iterator_exists = for_loop_checker.enumerator_iterator
-
-            if for_loop_exists == False:
-                raise NoForLoopError()
-            
-            elif mutation_type == FOR2ENUMERATE and enumerate_iterator_exists == True:
-                raise InvalidIteratorError(mutation_type=mutation_type)
-
-        ## Checking for any valid boolean operations before DeMorgan mutations
-        if mutation_type == DEMORGAN:
-            boolean_operation_checker = ASTNodeHelper.BooleanOperationDetectorNodeVisitor()
-            boolean_operation_checker.visit(tree)
-            boolean_operation_exists = boolean_operation_checker.boolean_operation_exists
-            if boolean_operation_exists == False:
-                raise NoBooleanOperationError()
-
-        ## Checking for any boolean literals before BOOLEAN_LITERAL mutations
-        if mutation_type == BOOLEAN_LITERAL:
-            boolean_literal_checker = ASTNodeHelper.BooleanLiteralDetectorNodeVisitor()
-            boolean_literal_checker.visit(tree)
-            boolean_literal_exists = boolean_literal_checker.boolean_literal_exists
-            if boolean_literal_exists == False:
-                raise NoBooleanLiteralError()
-
-        ## Checking for any commutative operations before COMMUTATIVE_REORDER mutations
-        if mutation_type == COMMUTATIVE_REORDER:
-            commutative_operation_checker = ASTNodeHelper.CommutativeOperationDetectorNodeVisitor()
-            commutative_operation_checker.visit(tree)
-            commutative_operation_exists = commutative_operation_checker.commutative_operation_exists
-            if commutative_operation_exists == False:
-                raise NoCommutativeOperationError()
-
-        ## Checking for any constants to unfold before CONSTANT_UNFOLD mutations
-        if mutation_type in (CONSTANT_UNFOLD, CONSTANT_UNFOLD_ADD, CONSTANT_UNFOLD_MULT):
-            constant_unfold_checker = ASTNodeHelper.ConstantUnfoldDetectorNodeVisitor()
-            constant_unfold_checker.visit(tree)
-            constant_unfold_exists = constant_unfold_checker.constant_unfold_exists
-            if constant_unfold_exists == False:
-                raise NoConstantUnfoldError()
-
+        try: 
+            self.check_mutation_validity(tree = tree, mutation_type=mutation_type, task_set = task_set,)
+        except Exception as e:
+            raise e
+        
         ## Handling mutations
         try: 
             self.handle_mutation(
@@ -328,9 +444,9 @@ class CodeMutator:
             multiprocessing_queue = multiprocessing.Queue()
 
             verify_answer_process = multiprocessing.Process(        
-            target= test_set_helper.run_llm_answer,
-            args = (mutated_full_sol, self.mutated_dict['check_function'], self.func_name, multiprocessing_queue)
-            )
+                target= test_set_helper.run_llm_answer,
+                args = (mutated_full_sol, self.mutated_dict['check_function'], self.func_name, multiprocessing_queue)
+                )
             
             verify_answer_process.start()
             verify_answer_process.join(timeout=timeout)
@@ -357,22 +473,23 @@ class CodeMutator:
             tree: ast.AST,
             input_args: Any = None,
     ):
-
         logical_mutations = [getattr(Mutations.LogicalMutations, m) for m in dir(Mutations.LogicalMutations) if not m.startswith("__")]
         lexical_mutations = [getattr(Mutations.LexicalMutations, m) for m in dir(Mutations.LexicalMutations) if not m.startswith("__")]
         syntactic_mutations = [getattr(Mutations.SyntacticMutations, m) for m in dir(Mutations.SyntacticMutations) if not m.startswith("__")]
-
         try:
             if mutation_type in syntactic_mutations:
                 full_sol = self.mutated_dict['question']
-                examples = self.mutated_dict['examples']
+                examples = self.mutated_dict.get('examples', None)
                 if mutation_type == FOR2WHILE:
                     if task_set in (HUMANEVAL, CODEMMLU):
                         input_metadata = PredictionInconsistencyHumanEvalHelper.extract_input_metadata(examples = examples, qn = full_sol)
-                    elif task_set in (CRUXEVAL, ):
+                    elif task_set in (CRUXEVAL, TURBULENCE):
                         input_metadata = PredictionInconsistencyCruxEvalHelper.extract_input_metadata(prog=full_sol, test_input=input_args)
+                    print(input_metadata)
                     variable_metadata = CodeMutator.obtain_variable_types(tree, input_metadata)
+                    print(variable_metadata)
                     merged_metadata = input_metadata | variable_metadata
+                    print(merged_metadata)
                     mutated_sol = CodeMutator.mutate_for_to_while(tree = tree, input_metadata=merged_metadata)  
                     # print(full_sol)
                     # print(mutated_sol)
@@ -390,9 +507,17 @@ class CodeMutator:
                     
                 elif mutation_type == BOOLEAN_LITERAL:
                     mutated_sol = CodeMutator.mutate_boolean_literal(tree = tree)
-                    
+                
                 elif mutation_type == COMMUTATIVE_REORDER:
-                    mutated_sol = CodeMutator.mutate_commutative_reorder(tree = tree)
+                    if task_set in (HUMANEVAL, CODEMMLU):
+                        examples = self.mutated_dict['examples']
+                        input_metadata = PredictionInconsistencyHumanEvalHelper.extract_input_metadata(examples = examples, qn = full_sol)
+                    elif task_set in (CRUXEVAL, TURBULENCE):
+                        input_metadata = PredictionInconsistencyCruxEvalHelper.extract_input_metadata(prog=full_sol, test_input=input_args)
+                    variable_metadata = CodeMutator.obtain_variable_types(tree, input_metadata)
+                    merged_metadata = input_metadata | variable_metadata
+
+                    mutated_sol = CodeMutator.mutate_commutative_reorder(tree = tree, metadata_dict=merged_metadata)
                     
                 elif mutation_type == CONSTANT_UNFOLD:
                     mutated_sol = CodeMutator.mutate_constant_unfold(tree = tree)
@@ -423,7 +548,7 @@ class CodeMutator:
             self.mutated_dict['full_sol'] = mutated_sol
 
         except Exception as e:
-            print("Error at handle_mutation()")
+            print(f"Error at handle_mutation(): {type(e)}")
             raise e
         
     
@@ -434,8 +559,7 @@ class CodeMutator:
         output_args: Any,
         input_metadata: str,
         task_set: str,
-    ):
-        
+    ):          
         full_sol : str = self.mutated_dict.get('full_sol', None)
 
         try: 
@@ -447,51 +571,15 @@ class CodeMutator:
         sanitised_question = CodeMutator.parse_through_ast(tree)
         tree = ast.parse(sanitised_question)
 
-        # Pre condition check that checks if a valid for loop exists
-        if mutation_type in (FOR2WHILE, FOR2ENUMERATE):
-            for_loop_checker = ASTNodeHelper.ForLoopDetectorNodeVisitor()
-
-            for_loop_checker.visit(tree)
-            for_loop_exists = for_loop_checker.for_loop_exists
-            enumerate_iterator_exists = for_loop_checker.enumerator_iterator
-
-            if for_loop_exists == False:
-                raise NoForLoopError()
-            
-            if mutation_type == FOR2ENUMERATE and enumerate_iterator_exists == True:
-                raise InvalidIteratorError(mutation_type=mutation_type)
-        
-        # Pre condition check that checks if valid boolean operations exist
-        if mutation_type == DEMORGAN:
-            boolean_operation_checker = ASTNodeHelper.BooleanOperationDetectorNodeVisitor()
-            boolean_operation_checker.visit(tree)
-            boolean_operation_exists = boolean_operation_checker.boolean_operation_exists
-            if boolean_operation_exists == False:
-                raise NoBooleanOperationError()
-
-        # Pre condition check that checks if boolean literals exist
-        if mutation_type == BOOLEAN_LITERAL:
-            boolean_literal_checker = ASTNodeHelper.BooleanLiteralDetectorNodeVisitor()
-            boolean_literal_checker.visit(tree)
-            boolean_literal_exists = boolean_literal_checker.boolean_literal_exists
-            if boolean_literal_exists == False:
-                raise NoBooleanLiteralError()
-
-        # Pre condition check that checks if commutative operations exist
-        if mutation_type == COMMUTATIVE_REORDER:
-            commutative_operation_checker = ASTNodeHelper.CommutativeOperationDetectorNodeVisitor()
-            commutative_operation_checker.visit(tree)
-            commutative_operation_exists = commutative_operation_checker.commutative_operation_exists
-            if commutative_operation_exists == False:
-                raise NoCommutativeOperationError()
-
-        # Pre condition check that checks if constants to unfold exist
-        if mutation_type in (CONSTANT_UNFOLD, CONSTANT_UNFOLD_ADD, CONSTANT_UNFOLD_MULT):
-            constant_unfold_checker = ASTNodeHelper.ConstantUnfoldDetectorNodeVisitor()
-            constant_unfold_checker.visit(tree)
-            constant_unfold_exists = constant_unfold_checker.constant_unfold_exists
-            if constant_unfold_exists == False:
-                raise NoConstantUnfoldError()
+        try:
+            self.check_mutation_validity(
+                tree = tree, 
+                mutation_type=mutation_type, 
+                task_set = task_set, 
+                input_args = input_args
+            )
+        except Exception as e:
+            raise e
         
         try:
             self.handle_mutation(
@@ -503,7 +591,6 @@ class CodeMutator:
 
         except Exception as e:
             raise e
-
         mutated_sol = self.mutated_dict['full_sol']
         self.mutated_dict['question'] = mutated_sol
 
@@ -520,8 +607,8 @@ class CodeMutator:
                 self.check_solution_validity(mutated_sol, output_args)
             else:
                 self.check_solution_validity(mutated_sol, output_args, input_args)
-
         except Exception as e:
+            print(mutated_sol)
             print(f"DEBUG: Mutation check failed with error: {type(e).__name__}: {e}")
             raise MutationCheckFailedError(e)
     
@@ -588,7 +675,6 @@ class CodeMutator:
     ) -> None:
         # 1) Build rename mapping for all identifiers
         rename_map = {}
-
         question = self.mutated_dict.get('question', None)
         qn_desc = self.mutated_dict.get('qn_desc', None)
         examples = self.mutated_dict.get('examples', None)
@@ -713,6 +799,7 @@ class CodeMutator:
         input_metadata: Dict[str, str]
     ) -> str:
         try: 
+            print(input_metadata)
             mutated_source = ASTNodeHelper.ForToWhileNodeTransformer(input_metadata= input_metadata).visit(tree)
         except Exception as e:
             raise MutationFailedError(error = e)
@@ -776,13 +863,13 @@ class CodeMutator:
         return mutated_code
     
     @staticmethod
-    def mutate_commutative_reorder(tree: ast.AST) -> str:
+    def mutate_commutative_reorder(tree: ast.AST, metadata_dict: Dict) -> str:
         """
         Reorder commutative operations while preserving functionality.
         a + b ↔ b + a, a * b ↔ b * a
         """
         try:
-            mutated_source = ASTNodeHelper.CommutativeReorderTransformer().visit(tree)
+            mutated_source = ASTNodeHelper.CommutativeReorderTransformer(metadata_dict= metadata_dict).visit(tree)
         except Exception as e:
             raise MutationFailedError(error=e)
         

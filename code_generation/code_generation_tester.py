@@ -283,8 +283,9 @@ class CodeGenerationTester(Tester):
                     try: 
                         # Running the llm on the input variables and the prompt template
                         ans = self.execute_llm(input_variables = input_variables, prompt_template = prompt_template, llm_model = llm, model_name=model_name)
+
                     except Exception as e:
-                        log_data_entry["failure_type"] = (LLMExecutionRuntimeError.__name__ > e)
+                        log_data_entry["failure_type"] = (f"{LLMExecutionRuntimeError.__name__} > {e}")
                         CodeGenerationTester.log_into_csv(output_file_path = output_file_path, input_data = log_data_entry)
                         continue
                     
@@ -344,21 +345,11 @@ class CodeGenerationTester(Tester):
                     
                     task_pass_count += 1
 
-                    # print(f"{task_id}: {task_pass_count}")
-
                 except Exception as e:
-                    if isinstance(e, AssertionError):
-                        print("{task_id}: Function failed to run due to following error -> {e}".format(e = e, task_id = task_id))
-                    elif isinstance(e, RuntimeError):
-                        print("{task_id}: LLM Answer exceeded runtime of {timeout} seconds -> {e}".format(e = e, task_id = task_id, timeout = timeout))
-                    else:
-                        print("{task_id}: Could not run the LLM answer due to the following error: {e}".format(e = e, task_id = task_id))
                     log_data_entry['failure_type'] = type(e)            # Logging failure type into log_data_entry
 
                 # logging completed run into csv 
                 CodeGenerationTester.log_into_csv(output_file_path = output_file_path, input_data = log_data_entry)
-
-                time.sleep(2)
                 
             return task_pass_count
         except Exception as e:

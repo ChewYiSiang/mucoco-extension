@@ -65,10 +65,10 @@ class LLMConsistencyTester(CodeGenerationTester):
 
         for mutation in mutations:
             if mutation not in InputPrediction.MUTATIONS:
-                raise ValueError(f"{mutation} mutation is an invalid mutation for mcq inconsistency.")
+                raise ValueError(f"{mutation} mutation is an invalid mutation for prediction inconsistency.")
             
         if task_set not in InputPrediction.BENCHMARKS:
-            raise ValueError(f"{task_set} is an invalid benchmark dataset for mcq inconsistency. Only {MCQInconsistency.BENCHMARKS} datasets are valid.")
+            raise ValueError(f"{task_set} is an invalid benchmark dataset for prediction inconsistency. Only {MCQInconsistency.BENCHMARKS} datasets are valid.")
 
         task_pass_count = 0             # int variable tracking the number of tasks that have passed
         failed_validity = []            # list storing the test case id that have failed the check functions
@@ -103,7 +103,6 @@ class LLMConsistencyTester(CodeGenerationTester):
                     continue
 
                 prompt_template = prompt_helper()
-            
                 full_sol = qn_sample['full_sol']                    # full canonical solution for the task
                 qn_desc = qn_sample.get('qn_desc', "")              # task description. This should be the extracted doc string from the original task
                 examples = qn_sample.get('examples', {})            # examples for other prompt techniques like one shot, few shot
@@ -194,7 +193,6 @@ class LLMConsistencyTester(CodeGenerationTester):
                             task_set = task_set
                         )
                         
-
                 except Exception as e:
                     # If no mutation was requested, treat as unexpected error and continue
                     log_entry['failure_type'] = f"{type(e).__name__} > {e}"
@@ -226,7 +224,9 @@ class LLMConsistencyTester(CodeGenerationTester):
                     ans = LLMConsistencyTester.process_llm_ans(ans)
 
                     log_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
-
+                    
+                    if task_type == InputPrediction.NAME:
+                        log_entry['geometric'] = ans_dict["geom_mean_prob"]
                 else: 
                     try:
                         ans = self.execute_llm(
@@ -244,8 +244,6 @@ class LLMConsistencyTester(CodeGenerationTester):
                 
                     log_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
                     
-                    time.sleep(2)
-
                 ## Running the formatted prompt into the LLM
                 try:
                     if task_type == Tasks.OutputPrediction.NAME:

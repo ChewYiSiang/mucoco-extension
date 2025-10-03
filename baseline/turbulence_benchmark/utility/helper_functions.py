@@ -1,6 +1,6 @@
 import os
 import importlib.util
-from typing import List, Any
+from typing import List, Any, Iterable
 import ast
 import re
 import multiprocessing as mp
@@ -9,6 +9,11 @@ import numpy as np
 from utility.custom_decorators import multiprocessing_method
 import contextlib
 import io
+import random
+from numpy import matrix
+import inspect
+from utility.constants import Seed
+from code_mutation.mutation_functions import run_llm_answer, CodeMutator
 
 f = io.StringIO()
 
@@ -19,6 +24,9 @@ def run_tests(
         test_names: List[str], 
         error_queue: mp.Queue, 
     ) -> None:
+
+    random.seed(Seed.value)
+
     with suppress(Exception) and contextlib.redirect_stdout(f):
         namespace = {}
 
@@ -31,22 +39,8 @@ def run_tests(
                     namespace[test_name]()
                 except Exception as e:
                     error_queue.put(e)
-                    raise e
                 
-@multiprocessing_method
-def run_program(
-        program: str,
-        func_name: str,
-        func_input: Any,
-        mp_queue: mp.Queue,
-    ) -> None:
-    with contextlib.redirect_stdout(f):
-        namespace = {}
-        exec(program, namespace)
-        try:
-            mp_queue.put(namespace[func_name](func_input))
-        except Exception:
-            return
+            
 
 
 class TurbulenceBenchmarkHelper:
@@ -79,6 +73,12 @@ class TurbulenceBenchmarkHelper:
         os.chdir(curr_dir) 
         return res
     
+    def modify_original_prompt_for_prediction_testing(self, original_prompt: str) -> str:
+        prompt_list = original_prompt.split()
+        if prompt_list[0].lower() == "write":
+            prompt_list[0] = "You are given"
+        return ' '.join(prompt_list)
+    
     def run_input_generator(
         self,
         qn_folder_dir: str,
@@ -99,6 +99,22 @@ class TurbulenceBenchmarkHelper:
             res.append(gen_func_params_res)
 
         return res
+    
+    def obtain_canon_sol_output(
+        self,
+        solution: str,
+        test_input: Any,
+        func_name: str,
+        ) -> Any | None:
+
+        answer = self._obtain_program_answer(
+            program=solution,
+            func_input=test_input,
+            func_name=func_name
+        )
+
+        return answer
+
     
     def process_test_cases(
         self,
@@ -160,6 +176,7 @@ class TurbulenceBenchmarkHelper:
 
         timeout = 30
         error_queue = mp.Queue()
+
         run_tests_process = mp.Process(
             target= run_tests,
             kwargs={
@@ -205,24 +222,30 @@ class TurbulenceBenchmarkHelper:
             metadata: str,
         ) -> np.matrix | Any:
         if metadata == np.matrix.__name__:
-            return np.matrix(list(data))
+            return np.matrix(eval(data))
         elif type(data).__name__ != metadata:
-            return ast.literal_eval(data)
+            return eval(data)
         else:
             return data
-        
-
-    def verify_LLM_answer(
-            self,
+    
+    def verify_prog_answer(
+            self, 
             canonical_sol: str,
             func_input: Any,
             func_name: str,
-            llm_ans: str
-        ):
-        model_ans = self._obtain_program_answer(program=canonical_sol, func_input=func_input, func_name=func_name)
-        llm_ans = self._obtain_program_answer(program=llm_ans, func_input=func_input, func_name=func_name)
+            func_output: Any,
+        ) -> None:
+        
+        canon_ans = self._obtain_program_answer(program=canonical_sol, func_input=func_input, func_name=func_name)
+        CodeMutator.verify_with_canon_ans(func_output=func_output, canon_ans=canon_ans)
+        
+    def verify_prog_output(
+            self,
+            canon_ans: str,
+            func_output: Any,
+        ) -> None:
+        CodeMutator.verify_with_canon_ans(func_output=func_output, canon_ans=canon_ans)
 
-        assert model_ans == llm_ans
         
     def _obtain_program_answer(
             self,
@@ -233,15 +256,17 @@ class TurbulenceBenchmarkHelper:
 
         prog_timeout = 30
 
-        mp_queue = mp.Queue()
+        error_queue = mp.Queue()
+        ans_queue = mp.Queue()
 
         answer_process = mp.Process(
-            target = run_program,
+            target = run_llm_answer,
             kwargs= {
-                'program': program,
+                'prog': program,
                 'func_name': func_name,
-                'func_input': func_input,
-                'mp_queue': mp_queue
+                'error_queue': error_queue,
+                'ans_queue': ans_queue,
+                "func_input": func_input 
             }
         )
 
@@ -251,9 +276,10 @@ class TurbulenceBenchmarkHelper:
         if answer_process.is_alive():
             answer_process.kill()
             raise(RuntimeError())
-        
-        if not mp_queue.empty():
-            return mp_queue.get()
+        if not error_queue.empty():
+            print(error_queue.get())
+        if not ans_queue.empty():
+            return ans_queue.get()
         else:
             return None
         

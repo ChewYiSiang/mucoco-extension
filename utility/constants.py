@@ -1,6 +1,5 @@
-from typing import Callable
 from llm_models.code_llms import Mistral, OpenAILLM
-from llm_models.code_reasoning_llms import OpenAIReasoningLLM
+from llm_models.code_reasoning_llms import OpenAIReasoningLLM, DeepSeekReasonerLLM, ClaudeReasoningLLM
 from llm_models.gpu_code_llms import TransformersCodeLLM
 
 class PromptTypes:
@@ -73,7 +72,7 @@ class Tasks:
         
     class OutputPrediction:
         NAME = "output_prediction"
-        BENCHMARKS = (HumanEval.NAME, CruxEval.NAME)
+        BENCHMARKS = (HumanEval.NAME, CruxEval.NAME, Turbulence.NAME)
         MUTATIONS = [
             getattr(SyntacticMutations, m) for m in dir(SyntacticMutations) if not m.startswith("__")] + [
             getattr(LogicalMutations, m) for m in dir(LogicalMutations) if not m.startswith("__")] + [
@@ -92,6 +91,8 @@ class LLMModels:
     class ReasoningModels:
         GPT5 = {"name": "gpt-5", "model_class": OpenAIReasoningLLM}
         GPT4O_REASONING = {"name": "gpt-4o-reasoning", "model_class": OpenAIReasoningLLM}
+        DEEPSEEK_REASONER = {"name": "deepseek-reasoner", "model_class": DeepSeekReasonerLLM}
+        CLAUDE_REASONING = {"name": "claude-sonnet-4-5-20250929", "model_class": ClaudeReasoningLLM}
     
     class NonReasoningModels:
         MISTRAL_SMALL_LATEST = {"name": "mistral-small-latest", "model_class": Mistral}
@@ -106,3 +107,6 @@ NonReasoningModels = LLMModels.NonReasoningModels
 class SamplingMethods:
     SYSTEMATIC = "systematic"
     RANDOM = 'random'
+
+class Seed:
+    value = 1234

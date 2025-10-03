@@ -50,6 +50,10 @@ class PredictionInconsistencyPromptTemplate:
         def zero_shot_prompt(self) -> str:
             prompt = textwrap.dedent("""
                 # You are given a code snippet, a description of the code and the input. Return the expected output in your answer. Your answer should only contain the expected output with no additional information. 
+                                     
+                # The output should be in the expected format. For example, given max([10,1]), your answer should be 10 and not "10".
+                # Do not return any reasoning in your final answer.
+                                     
                 {qn_desc}
                             
                 # Code Snippet
@@ -58,16 +62,16 @@ class PredictionInconsistencyPromptTemplate:
                 # Input
                 {test_input}
                                     
-                # Expected Output:                      
-                ### Your answer
+                # Your answer
             """)
             return prompt
             
         def one_shot_prompt(self) -> str:
             prompt = textwrap.dedent("""
                 # You are given a code snippet, a description of the code, the input and a single example. You may use the example to determine the expected output. Return the expected output in your answer.
-                
                 # Your answer should only contain the expected output with no additional information. 
+                # The output should be in the expected format. For example, given max([10,1]), your answer should be 10 and not "10".
+                # Do not return any reasoning in your final answer.
                                     
                 {qn_desc}
                             
@@ -80,17 +84,17 @@ class PredictionInconsistencyPromptTemplate:
                 # Example
                 {example}
                                     
-                # Expected Output: 
-                ### Your answer
+                # Your answer
             """)
             return prompt
         
         def few_shot_prompt(self) -> str:
             prompt = textwrap.dedent("""
                 # You are given a code snippet, a description of the code, the input and a few examples. You may use the examples to determine the expected output. Return the expected output in your answer. 
-                
                 # Your answer should only contain the expected output with no additional information. 
-                                    
+                # The output should be in the expected format. For example, given max([10,1]), your answer should be 10 and not "10".
+                # Do not return any reasoning in your final answer.
+                                     
                 {qn_desc}
                             
                 # Code Snippet
@@ -102,8 +106,7 @@ class PredictionInconsistencyPromptTemplate:
                 # Examples
                 {example}
                                     
-                # Expected Output: 
-                ### Your answer
+                # Your answer
             """)
             return prompt
 
@@ -112,7 +115,8 @@ class PredictionInconsistencyPromptTemplate:
             prompt = textwrap.dedent("""
                 # You are given a code snippet, a description of the code, an output and an input. Your task is to determine if running the program with the input could result in the output. 
                 # Your answer should either be "True" or "False". Do not provide any additional information and explanations. 
-                                     
+                # Do not return any reasoning in your final answer.
+                          
                 {qn_desc}
                             
                 # Code Snippet
@@ -132,7 +136,8 @@ class PredictionInconsistencyPromptTemplate:
             prompt = textwrap.dedent("""
                 # You are given a code snippet, a description of the code, an output and an input. Your task is to determine if running the program with the input could result in the output. You are also provided an example, which you may use to answer the question.
                 # Your answer should either be "True" or "False". Do not provide any additional information and explanations. 
-                                                   
+                # Do not return any reasoning in your final answer.
+                                           
                 {qn_desc}
                             
                 # Code Snippet
@@ -155,7 +160,8 @@ class PredictionInconsistencyPromptTemplate:
             prompt = textwrap.dedent("""
                 # You are given a code snippet, a description of the code, an output and an input. Your task is to determine if running the program with the input could result in the output. You are also provided with some examples, which you may use to answer the question.
                 # Your answer should either be "True" or "False". Do not provide any additional information and explanations. 
-                                    
+                # Do not return any reasoning in your final answer.
+                      
                 {qn_desc}
                             
                 # Code Snippet
@@ -173,6 +179,162 @@ class PredictionInconsistencyPromptTemplate:
                 # Your Answer
             """)
             return prompt
+        
+
+class ReasoningPredictionInconsistencyPromptTemplate(PredictionInconsistencyPromptTemplate):
+    class OutputPrediction(PromptTemplate):
+        def zero_shot_prompt(self) -> str:
+            prompt = textwrap.dedent("""
+                # Your task is to return the program output expected from the code program using the program description and program input.
+                # You must adhere to the following instructions:
+                # - Use the task description, code program and input to determine the program output
+                # - Your final answer should only contain the output in the expected format. For example, given code program max([10,1]), your answer should be an integer 10 and not a string "10".
+                # - Do not include any intermediate steps or any reasoning steps in your final answer.
+
+                ### Program Description          
+                {qn_desc}
+                            
+                ### Code Program
+                {full_sol}
+                
+                ### Program Input
+                {test_input}
+                                    
+                ### Your answer
+            """)
+            return prompt
+            
+        def one_shot_prompt(self) -> str:
+            prompt = textwrap.dedent("""
+                # Your task is to return the program output expected from the code program using the program description, program input and example.
+                # You must adhere to the following instructions:
+                # - Use the task description, code program, input and example to determine the program output
+                # - Your final answer should only contain the output in the expected format. For example, given code program max max([10,1]), your answer should be an integer 10 and not a string "10".
+                # - Do not include any intermediate steps or any reasoning steps in your final answer.
+
+                ### Program Description            
+                {qn_desc}
+                            
+                ### Code Program
+                {full_sol}
+                
+                ### Program Input
+                {test_input}
+                                    
+                ### Example
+                {example}
+                                    
+                ### Your answer
+            """)
+            return prompt
+        
+        def few_shot_prompt(self) -> str:
+            prompt = textwrap.dedent("""
+                # Your task is to return the program output expected from the code program using the program description, program input and examples.
+                # You must adhere to the following instructions:
+                # - Use the task description, code program, input and example to determine the program output
+                # - Your final answer should only contain the output in the expected format. For example, given code program max max([10,1]), your answer should be an integer 10 and not a string "10".
+                # - Do not include any intermediate steps or any reasoning steps in your final answer.
+
+                ### Program Description            
+                {qn_desc}
+                            
+                ### Code Program
+                {full_sol}
+                
+                ### Program Input
+                {test_input}
+                                    
+                ### Examples
+                {example}
+                                    
+                ### Your answer
+            """)
+            return prompt
+        
+    class InputPrediction(PromptTemplate):
+        def zero_shot_prompt(self) -> str:
+            prompt = textwrap.dedent("""
+                # Your task is to check whether running the given code with the provided input produces the specified output. 
+                # You must adhere to the following instructions:
+                # - Use the code, input, output, and description to decide.
+                # - Your final answer should only be True or False.
+                # - Return your final answer as a boolean value, not as a string.
+                # - Do not include any intermediate steps or any reasoning steps in your final answer.
+
+                ### Program Description          
+                {qn_desc}
+                            
+                ### Code Snippet
+                {full_sol}
+                
+                ### Output
+                {test_output}
+                                     
+                ### Input
+                {test_input}
+                                    
+                ### Your Answer
+            """)
+            return prompt
+            
+        def one_shot_prompt(self) -> str:
+            prompt = textwrap.dedent("""
+                # Your task is to check whether running the given code with the provided input produces the specified output. 
+                # You must adhere to the following instructions:
+                # - Use the code, input, output, description and example to decide.
+                # - Your final answer should only be True or False.
+                # - Return your final answer as a boolean value, not as a string.
+                # - Do not include any intermediate steps or any reasoning steps in your final answer.
+                                     
+                ### Program Description          
+                {qn_desc}
+                            
+                ### Code Snippet
+                {full_sol}
+                                     
+                ### Examples
+                {example}
+                
+                ### Output
+                {test_output}
+                                     
+                ### Input
+                {test_input}
+                                    
+                ### Your Answer
+            """)
+            return prompt
+        
+        def few_shot_prompt(self) -> str:
+            prompt = textwrap.dedent("""
+                # Your task is to check whether running the given code with the provided input produces the specified output. 
+                # You must adhere to the following instructions:
+                # - Use the code, input, output, description and example to decide.
+                # - Your final answer should only be True or False.
+                # - Return your final answer as a boolean value, not as a string.
+                # - Do not include any intermediate steps or any reasoning steps in your final answer.
+                                     
+                ### Program Description          
+                {qn_desc}
+                            
+                ### Code Snippet
+                {full_sol}
+                                     
+                ### Examples
+                {example}
+                
+                ### Output
+                {test_output}
+                                     
+                ### Input
+                {test_input}
+                                    
+                ### Your Answer
+            """)
+            
+            return prompt
+        
 
 
 class LlamaPredictionInconsistencyPromptTemplate:

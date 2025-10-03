@@ -1,6 +1,9 @@
 import ast
 import random
 from typing import Dict, Tuple
+from collections.abc import Iterable
+from utility.constants import Seed
+
 
 class ASTNodeHelper:
     """
@@ -38,13 +41,19 @@ class ASTNodeHelper:
 
         def __init__(self):
             self.for_loop_exists = False
-            self.enumerator_iterator = False
+            self.enumerator_iterator = True
 
         def visit_For(self, node: ast.For):
             self.for_loop_exists = True
 
-            if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == "enumerate":
-                self.enumerator_iterator = True
+            if not (
+                isinstance(node.iter, ast.Call) 
+                and isinstance(node.iter.func, ast.Name) 
+                and node.iter.func.id == "enumerate"
+            ):
+                self.enumerator_iterator = False
+            
+            self.generic_visit(node)
 
 
     class BooleanOperationDetectorNodeVisitor(ast.NodeVisitor):
@@ -95,13 +104,49 @@ class ASTNodeHelper:
             - BinOp nodes with commutative operations (Add, Mult)
         """
 
-        def __init__(self):
+        def __init__(self, metadata_dict: Dict):
             self.commutative_operation_exists = False
+            self.metadata_dict = metadata_dict
+
+        def check_node(self, node: ast.AST) -> bool:
+            if isinstance(node, ast.Call):
+                return self._check_ast_Function(node)
+            elif isinstance(node, ast.Constant):
+                return self._check_ast_Constant(node)
+            elif isinstance(node, ast.Name):
+                return self._check_ast_Name(node)
+            else:
+                return False
+
+        def _check_ast_Function(self, node: ast.Call) -> bool:
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in ("len","int","float"):
+                return True
+            return False
+        
+        def _check_ast_Constant(self, node: ast.Constant) -> bool:
+            if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+                return True
+            return False
+        
+        def _check_ast_Name(self, node: ast.Name) -> bool:
+            if isinstance(node, ast.Name) and self.metadata_dict.get(node.id, "no_entry") in (int.__name__, float.__name__):
+                return True
+            return False
+
+        #TODO: HEREEE
 
         def visit_BinOp(self, node):
-            if isinstance(node.op, (ast.Add, ast.Mult)):
-                self.commutative_operation_exists = True
-                return # early return if + or * detected
+            self.generic_visit(node)
+            if isinstance(node.op, (ast.Add, ast.Mult)) and self.commutative_operation_exists != True:
+                operands = (node.left, node.right)
+                if (
+                    any(isinstance(n, (ast.Constant, ast.Call, ast.Name)) for n in operands)
+                ):
+                    for n in operands:
+                        self.commutative_operation_exists = self.check_node(n)
+                        if self.commutative_operation_exists == True:
+                            return            
+            return
 
     class ConstantUnfoldDetectorNodeVisitor(ast.NodeVisitor):
         """
@@ -145,6 +190,7 @@ class ASTNodeHelper:
                 None: returned if node type is out of scope
             """
             ## If statement checking for scenario 1 -> E.g.: i = 10 OR s = "hello"
+
             if isinstance(node, ast.Constant):
                 var_type = type(node.value).__name__ # obtaining the variable type in string format
                 return var_type
@@ -154,7 +200,7 @@ class ASTNodeHelper:
                 if isinstance(node.func, ast.Name):
                     # If statement catching cases like n = len(list) which will return an int.
                     # Note: The logic for 'max' is incorrect here as max can also return a string. It's just used as a placeholder to pass CruxEvalTF521
-                    if node.func.id in ("len", "max"):
+                    if node.func.id in ("len", "max", ):
                         return int.__name__ # int data type returned as len() always returns an integer
                     
                     # Elif statement catching cases like list(x) or dict(x), and returning the type as itself
@@ -167,17 +213,20 @@ class ASTNodeHelper:
                         float.__name__,
                     ):
                         return node.func.id
-                
+
                 # Catching cases like n = list.count("1"), in which the data type for m will be an int
                 elif isinstance(node.func, ast.Attribute) and node.func.attr == "count":
                     return int.__name__
                 
-
-            
             ## If statement checking for scenario 3 -> E.g.: i = var1
             #  The if statement also checks if the variable type has already been stored in the metadata_map and retrieves the variable type directly
-            elif isinstance(node, ast.Name) and self.metadata_map.get(node.id, None) is not None:
-                return self.metadata_map[node.id]
+            elif isinstance(node, ast.Name) and self.metadata_map.get(node.id, 'no_entry') is not 'no_entry':
+                stored_metadata = self.metadata_map[node.id]
+                data_types = (list.__name__, str.__name__, tuple.__name__, dict.__name__, int.__name__, float.__name__, type(None).__name__)
+                if any(data_type for data_type in data_types if data_type in stored_metadata):
+                    return stored_metadata
+                else:
+                    return eval(self.metadata_map[node.id])
                 
             elif isinstance(node, ast.BinOp):     
                 if isinstance(node.left, (ast.List, ast.Tuple)) or isinstance(node.right, (ast.List, ast.Tuple)):
@@ -188,7 +237,12 @@ class ASTNodeHelper:
                     return var_type
                 
                 elif isinstance(node.right, (ast.Name)):
-                    return self.metadata_map.get(node.right.id, None)
+                    existing_var = self.metadata_map.get(node.right.id, None)
+                    if existing_var == None:
+                        return type(None).__name__
+                    else:
+                        return existing_var
+                    
 
             elif isinstance(node, ast.IfExp):
                 if isinstance(node.body, ast.UnaryOp):
@@ -196,10 +250,37 @@ class ASTNodeHelper:
                 else:
                     return self.obtain_data_type(node.body)
                 
+            elif isinstance(node, ast.Subscript):
+                if not isinstance(node.value, ast.Name):
+                    return type(None).__name__
+                
+                value = node.value.id
+                var = self.metadata_map.get(value, "not_in_metadata")
+
+                if var == "not_in_metadata" or not isinstance(var, Iterable):
+                    return type(None).__name__
+
+                if isinstance(node.slice, ast.Constant) and  isinstance(node.slice.value, int):
+                    slice = node.slice.value
+                    return eval(var)[slice] if not isinstance(var, str) else var[slice]
+                
+                elif isinstance(node.slice, ast.Slice):                        
+                    upper = 0 if node.slice.upper == None else node.slice.upper
+                    lower = 0 if node.slice.lower == None else node.slice.lower
+                    step = 0 if node.slice.step == None else node.slice.step
+
+                    if any(not isinstance(slice, ast.Constant) for slice in [upper, lower, step]):
+                        return None
+                    
+                    return eval(value)[upper:lower:step]if not isinstance(var, str) else value[upper:lower:step]
+
+                else:
+                    pass
+            
             ## None returned for nodes out of the scope of this method
             return None
 
-        def visit_Assign(self, node: ast.AST) -> None:
+        def visit_Assign(self, node):
             """
             This method visits all nodes that are of type ast.Assign.
 
@@ -216,6 +297,19 @@ class ASTNodeHelper:
                 var_name = node.targets[0].id
                 var_type = self.obtain_data_type(node.value)
                 self.metadata_map[var_name] = var_type
+
+
+        def visit_For(self, node):
+            if isinstance(node.target, ast.Name):
+                var_name = node.target.id
+            elif isinstance(node.target, (ast.Tuple, ast.List)) and isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == "enumerate":
+                var_name = node.target.elts[0].id
+            else:
+                return
+            
+            self.metadata_map[var_name] = self.obtain_data_type(node.iter)
+            pass
+
 
     class VariableNameTransformer(ast.NodeTransformer):
         def __init__(self, rename_map: Dict[str, str]):
@@ -520,8 +614,9 @@ class ASTNodeHelper:
 
             # storing the name of the counter in this instance
             self.target_name = target_name
-
             func_args = self.find_iteration(raw_func_args)
+
+
             ## Updating the start, step, if necessary
             if isinstance(func_args, list):
                 if isinstance(node.iter, ast.Call) and isinstance(node.iter.func, ast.Name) and node.iter.func.id == 'enumerate' and len(node.iter.args) > 1:    # handling edge cases like for idx, ele in enumerate(list, 1)
@@ -536,7 +631,6 @@ class ASTNodeHelper:
             if step < 0:
                 increment = False
                 
-
             ## Establishing the counter for the while loop
             #       E.g.: i = 0
             init_assign = ast.Assign(
@@ -551,15 +645,22 @@ class ASTNodeHelper:
             ast.fix_missing_locations(init_assign)
             func_arg_type = self.input_metadata.get(func_args, None)
 
+            if isinstance(func_arg_type, str) and func_arg_type.startswith("list"):
+                try:
+                    func_arg_type = type(eval(func_arg_type)).__name__
+                except:
+                    pass
+
             # updating the input_metadata dict with the new variable assignment
             self.input_metadata[target_name] = int.__name__
 
             ## Setting up the iteration node used in the while loop
             ## The first if condition looks for the following cases:
             ##      ast.BinOp: for i in (3+10)     -> while i < (3+10)
-            ##      ast.Call: for i range(len('hello')) -> while i < len('hello')
+            ##      ast.Call: for i in range(len('hello')) -> while i < len('hello')
             ##      ast.Constant: for s in some_string  -> while i < len(some_string)
             ## Do note that only ast.Call on 'range' functions are rejected here.
+
             if isinstance(func_args, ast.Call):
                 if isinstance(func_args.func, ast.Name) and func_args.func.id == 'zip':
                     len_nodes = []
@@ -679,6 +780,7 @@ class ASTNodeHelper:
                         args= [(ast.Name(str(func_args)) if not isinstance(func_args, (ast.Subscript, ast.Call, ast.Name)) else func_args)],           # ast.Subscript will be len(func_args[:-1]), while the rest will be len(func_args)
                         keywords=[]
                 )
+
 
             ## Setting up the comparison node in the while loop
             #       E.g.: while i < 10:
@@ -864,17 +966,25 @@ class ASTNodeHelper:
         Reorder commutative operations while preserving functionality.
         a + b ↔ b + a, a * b ↔ b * a
         """
+        def __init__(self, metadata_dict: Dict):
+            self.metadata_dict = metadata_dict
+
         def visit_BinOp(self, node):
             self.generic_visit(node)
-            
-            # Only reorder commutative operations
+            node_visitor = ASTNodeHelper.CommutativeOperationDetectorNodeVisitor(metadata_dict=self.metadata_dict)
             if isinstance(node.op, (ast.Add, ast.Mult)):
-                # Swap left and right operands
-                return ast.BinOp(
-                    left=node.right,
-                    op=node.op,
-                    right=node.left
-                )
+                operands = (node.left, node.right)
+                if (
+                    any(isinstance(n, (ast.Constant, ast.Call, ast.Name)) for n in operands)
+                ):
+                    for n in operands:
+                        if node_visitor.check_node(n) == True:
+                            # Swap left and right operands
+                            return ast.BinOp(
+                                left=node.right,
+                                op=node.op,
+                                right=node.left
+                            )                
             
             return node
     
@@ -949,6 +1059,7 @@ class ASTNodeHelper:
             
             if isinstance(node.value, int) and node.value > 1:
                 # Randomly choose how to unfold the constant
+                random.seed(Seed.value)
                 unfold_type = random.choice(['add', 'mult'])
                 
                 if unfold_type == 'add':

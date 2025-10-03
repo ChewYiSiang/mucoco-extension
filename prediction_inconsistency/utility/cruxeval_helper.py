@@ -1,6 +1,6 @@
 import ast
 from prediction_inconsistency.utility.database_helper import PredictionInconsistencyHelper
-from typing import Any
+from typing import Any, List, Tuple
 
 class PredictionInconsistencyCruxEvalHelper(PredictionInconsistencyHelper):
     @staticmethod
@@ -19,8 +19,7 @@ class PredictionInconsistencyCruxEvalHelper(PredictionInconsistencyHelper):
         
     @staticmethod
     def extract_input_metadata(prog: str, test_input: Any):
-        tree = ast.parse(prog)
-        
+        tree = ast.parse(prog)        
         class FunctionArgExtractor(ast.NodeVisitor):
             def __init__(self):
                 self.arg_names = []
@@ -35,9 +34,19 @@ class PredictionInconsistencyCruxEvalHelper(PredictionInconsistencyHelper):
         input_metadata_dict = {}
 
         if len(arg_names) == 1:
-            input_metadata_dict[arg_names[0]] = type(test_input).__name__
+            input_metadata_dict[arg_names[0]] = PredictionInconsistencyCruxEvalHelper.extract_nested_metadata(test_input)
         elif len(arg_names) > 1 and isinstance(test_input,(list, tuple)):
             for idx, arg in enumerate(arg_names):
-                input_metadata_dict[arg] = type(test_input[idx]).__name__
+                input_metadata_dict[arg] = PredictionInconsistencyCruxEvalHelper.extract_nested_metadata(test_input[idx])
         return input_metadata_dict    
+    
+    @staticmethod
+    def extract_nested_metadata(data: Any):
+        if isinstance(data, (list, tuple)):
+            metadata_list = []
+            for d in data:
+                metadata_list.append(PredictionInconsistencyCruxEvalHelper.extract_nested_metadata(d))
+            return f"{type(data).__name__}({metadata_list})"
+        else:
+            return type(data).__name__
         

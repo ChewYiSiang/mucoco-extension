@@ -229,7 +229,6 @@ class LLMMCQInconsistencyTester(CodeGenerationTester):
                         LLMMCQInconsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
                         continue
 
-
                     ans = LLMMCQInconsistencyTester.process_llm_ans(ans)
                     log_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
 

@@ -90,7 +90,7 @@ class OpenEndedPromptTemplate(PromptTemplate):
         prompt = textwrap.dedent("""
         # Complete the given code snippet using the description below. 
         # Complete the function body and do not add any explanations or extra text. 
-        # Return all code snippet in your answer. 
+        # Return the given code snippet in your answer. 
         # Preserve indentation.
 
         ### Example:
@@ -191,6 +191,109 @@ class LlamaOpenEndedPromptTemplate(OpenEndedPromptTemplate):
                                  
             # Your answer:
             <|start_header_id|>assistant<|end_header_id|>
+        """)
+        return prompt
+    
+class ReasoningOpenEndedPromptTemplate(OpenEndedPromptTemplate):
+    def zero_shot_prompt(self):
+        prompt = textwrap.dedent("""
+            # Complete the given code function using the task description. 
+            # You must ahere to the following instructions:
+            # - Complete the given code snippet exactly as provided.
+            # - Include the code snippet in your answer.
+            # - Do not include any intermediate steps or any reasoning steps in your answer.
+            # - Your final answer should be valid Python code ready to be run.
+                                 
+            ### Example:
+
+            # Task
+            Return a function that returns the largest integer in a list.
+
+            # Code Snippet
+            def find_max(nums):
+
+            # Your Answer
+            def find_max(nums):
+                return max(nums)
+
+            ### Task Description:
+            {task}
+
+            ## Examples:
+            {example}
+                                 
+            ### Code Snippet:
+            {code}
+
+            ### Your Answer:
+        """)
+        return prompt
+    
+    def one_shot_prompt(self):
+        prompt = textwrap.dedent("""
+            # Complete the given code function using the task description and example. 
+            # You must ahere to the following instructions:
+            # - Complete the given code snippet exactly as provided.
+            # - Include the code snippet in your answer.
+            # - Do not include any intermediate steps or any reasoning steps in your answer.
+            # - Your final answer should be valid Python code ready to be run.
+                                 
+            ### Example:
+
+            # Task
+            Return a function that returns the largest integer in a list.
+
+            # Code Snippet
+            def find_max(nums):
+
+            # Your Answer
+            def find_max(nums):
+                return max(nums)
+
+            ### Task Description:
+            {task}
+
+            ### Examples:
+            {example}
+                                 
+            ### Code Snippet:
+            {code}
+
+            ### Your Answer:
+        """)
+        return prompt
+    
+    def few_shot_prompt(self):
+        prompt = textwrap.dedent("""
+            # Complete the given code function using the task description and examples. 
+            # You must ahere to the following instructions:
+            # - Complete the given code snippet exactly as provided.
+            # - Include the code snippet in your answer.
+            # - Do not include any intermediate steps or any reasoning steps in your answer.
+            # - Your final answer should be valid Python code ready to be run.
+                                 
+            ### Example:
+
+            # Task
+            Return a function that returns the largest integer in a list.
+
+            # Code Snippet
+            def find_max(nums):
+
+            # Your Answer
+            def find_max(nums):
+                return max(nums)
+
+            ### Task Description:
+            {task}
+
+            ### Examples:
+            {example}
+                                 
+            ### Code Snippet:
+            {code}
+
+            ### Your Answer:
         """)
         return prompt
 
