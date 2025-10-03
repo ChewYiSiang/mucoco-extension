@@ -37,13 +37,56 @@ class PredictionInconsistencyPromptTemplate:
             raise ValueError(f"{task_type} is an invalid task type. Only {InputPrediction.NAME} and {OutputPrediction.NAME} are valid.")
     
     @staticmethod
-    def return_model_appropriate_prompt(task_type: str, prompt_type: str, model_name: str = None):
+    def return_appropriate_qwen_prompt(task_type: str, prompt_type: str, thinking_mode: bool = False):
+        """Return Qwen-specific prompts with ChatML format."""
+        from prediction_inconsistency.prompt_templates.qwen_prompt_template import QwenPredictionInconsistencyPromptTemplate, QwenThinkingPredictionInconsistencyPromptTemplate
+        
+        if thinking_mode:
+            return QwenThinkingPredictionInconsistencyPromptTemplate.return_appropriate_prompt(task_type, prompt_type)
+        else:
+            return QwenPredictionInconsistencyPromptTemplate.return_appropriate_prompt(task_type, prompt_type)
+    
+    @staticmethod
+    def return_appropriate_gemma_prompt(task_type: str, prompt_type: str):
+        """Return Gemma-specific prompts with Gemma chat template format."""
+        from prediction_inconsistency.prompt_templates.gemma_prompt_template import GemmaPredictionInconsistencyPromptTemplate
+        
+        return GemmaPredictionInconsistencyPromptTemplate.return_appropriate_prompt(task_type, prompt_type)
+    
+    @staticmethod
+    def return_appropriate_deepseek_prompt(task_type: str, prompt_type: str):
+        """Return DeepSeek-specific prompts with DeepSeek chat template format."""
+        from prediction_inconsistency.prompt_templates.deepseek_prompt_template import DeepSeekPredictionInconsistencyPromptTemplate
+        
+        return DeepSeekPredictionInconsistencyPromptTemplate.return_appropriate_prompt(task_type, prompt_type)
+    
+    @staticmethod
+    def return_appropriate_mistral_prompt(task_type: str, prompt_type: str):
+        """Return Mistral-specific prompts with Mistral chat template format."""
+        from prediction_inconsistency.prompt_templates.mistral_prompt_template import MistralPredictionInconsistencyPromptTemplate
+        
+        return MistralPredictionInconsistencyPromptTemplate.return_appropriate_prompt(task_type, prompt_type)
+    
+    @staticmethod
+    def return_model_appropriate_prompt(task_type: str, prompt_type: str, model_name: str = None, thinking_mode: bool = False):
         """Return the appropriate prompt template based on model type."""
         # Check if it's a Llama model
         if model_name and ('llama' in model_name.lower() or 'Llama' in model_name):
             return PredictionInconsistencyPromptTemplate.return_appropriate_llama_prompt(task_type, prompt_type)
+        # Check if it's a Qwen model
+        elif model_name and ('qwen' in model_name.lower() or 'Qwen' in model_name):
+            return PredictionInconsistencyPromptTemplate.return_appropriate_qwen_prompt(task_type, prompt_type, thinking_mode)
+        # Check if it's a Gemma model
+        elif model_name and ('gemma' in model_name.lower() or 'Gemma' in model_name):
+            return PredictionInconsistencyPromptTemplate.return_appropriate_gemma_prompt(task_type, prompt_type)
+        # Check if it's a DeepSeek model
+        elif model_name and ('deepseek' in model_name.lower() or 'DeepSeek' in model_name):
+            return PredictionInconsistencyPromptTemplate.return_appropriate_deepseek_prompt(task_type, prompt_type)
+        # Check if it's a Mistral model
+        elif model_name and ('mistral' in model_name.lower() or 'Mistral' in model_name):
+            return PredictionInconsistencyPromptTemplate.return_appropriate_mistral_prompt(task_type, prompt_type)
         else:
-            # Use generic templates for other models (Mistral, GPT, etc.)
+            # Use generic templates for other models (GPT, etc.)
             return PredictionInconsistencyPromptTemplate.return_appropriate_prompt(task_type, prompt_type)
         
     class OutputPrediction(PromptTemplate):

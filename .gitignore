@@ -1,5 +1,6 @@
 .env
 venv
+venv2
 __pycache__
 *.csv
 !datasets/open_ended_format/*.csv
@@ -7,3 +8,7 @@ x.py
 requirements.txt
 bigcodebenchvenv
 y.py
+
+# OpenRouter test notebooks (temporary)
+prediction_inconsistency/test_notebooks/open_router/
+venv2

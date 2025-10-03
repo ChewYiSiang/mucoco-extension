@@ -65,6 +65,54 @@ class PromptTemplate(ABC):
         pass
 
 class MCQPromptTemplate(PromptTemplate):
+    
+    @staticmethod
+    def return_model_appropriate_prompt(prompt_type: str, model_name: str = None, thinking_mode: bool = False):
+        """Return the appropriate prompt template based on model type."""
+        # Check if it's a Qwen model
+        if model_name and ('qwen' in model_name.lower() or 'Qwen' in model_name):
+            return MCQPromptTemplate.return_appropriate_qwen_prompt(prompt_type, thinking_mode)
+        # Check if it's a Gemma model
+        elif model_name and ('gemma' in model_name.lower() or 'Gemma' in model_name):
+            return MCQPromptTemplate.return_appropriate_gemma_prompt(prompt_type)
+        # Check if it's a DeepSeek model
+        elif model_name and ('deepseek' in model_name.lower() or 'DeepSeek' in model_name):
+            return MCQPromptTemplate.return_appropriate_deepseek_prompt(prompt_type)
+        # Check if it's a Mistral model
+        elif model_name and ('mistral' in model_name.lower() or 'Mistral' in model_name):
+            return MCQPromptTemplate.return_appropriate_mistral_prompt(prompt_type)
+        else:
+            # Use generic templates for other models
+            return MCQPromptTemplate().return_appropriate_prompt(prompt_type)
+    
+    @staticmethod
+    def return_appropriate_qwen_prompt(prompt_type: str, thinking_mode: bool = False):
+        """Return Qwen-specific prompts with ChatML format."""
+        from code_generation.prompt_templates.qwen_prompt_template import QwenMCQPromptTemplate
+        
+        return QwenMCQPromptTemplate().return_appropriate_prompt(prompt_type)
+    
+    @staticmethod
+    def return_appropriate_gemma_prompt(prompt_type: str):
+        """Return Gemma-specific prompts with Gemma chat template format."""
+        from code_generation.prompt_templates.gemma_prompt_template import GemmaMCQPromptTemplate
+        
+        return GemmaMCQPromptTemplate().return_appropriate_prompt(prompt_type)
+    
+    @staticmethod
+    def return_appropriate_deepseek_prompt(prompt_type: str):
+        """Return DeepSeek-specific prompts with DeepSeek chat template format."""
+        from code_generation.prompt_templates.deepseek_prompt_template import DeepSeekMCQPromptTemplate
+        
+        return DeepSeekMCQPromptTemplate().return_appropriate_prompt(prompt_type)
+    
+    @staticmethod
+    def return_appropriate_mistral_prompt(prompt_type: str):
+        """Return Mistral-specific prompts with Mistral chat template format."""
+        from code_generation.prompt_templates.mistral_prompt_template import MistralMCQPromptTemplate
+        
+        return MistralMCQPromptTemplate().return_appropriate_prompt(prompt_type)
+    
     def zero_shot_prompt() -> str:
         prompt = textwrap.dedent("""
             Using this code snipper, answer the MCQ question below. 
@@ -86,6 +134,60 @@ class MCQPromptTemplate(PromptTemplate):
         return prompt
 
 class OpenEndedPromptTemplate(PromptTemplate):
+    
+    @staticmethod
+    def return_model_appropriate_prompt(prompt_type: str, model_name: str = None, thinking_mode: bool = False):
+        """Return the appropriate prompt template based on model type."""
+        # Check if it's a Llama model
+        if model_name and ('llama' in model_name.lower() or 'Llama' in model_name):
+            return LlamaOpenEndedPromptTemplate().return_appropriate_prompt(prompt_type)
+        # Check if it's a Qwen model
+        elif model_name and ('qwen' in model_name.lower() or 'Qwen' in model_name):
+            return OpenEndedPromptTemplate.return_appropriate_qwen_prompt(prompt_type, thinking_mode)
+        # Check if it's a Gemma model
+        elif model_name and ('gemma' in model_name.lower() or 'Gemma' in model_name):
+            return OpenEndedPromptTemplate.return_appropriate_gemma_prompt(prompt_type)
+        # Check if it's a DeepSeek model
+        elif model_name and ('deepseek' in model_name.lower() or 'DeepSeek' in model_name):
+            return OpenEndedPromptTemplate.return_appropriate_deepseek_prompt(prompt_type)
+        # Check if it's a Mistral model
+        elif model_name and ('mistral' in model_name.lower() or 'Mistral' in model_name):
+            return OpenEndedPromptTemplate.return_appropriate_mistral_prompt(prompt_type)
+        else:
+            # Use generic templates for other models
+            return OpenEndedPromptTemplate().return_appropriate_prompt(prompt_type)
+    
+    @staticmethod
+    def return_appropriate_qwen_prompt(prompt_type: str, thinking_mode: bool = False):
+        """Return Qwen-specific prompts with ChatML format."""
+        from code_generation.prompt_templates.qwen_prompt_template import QwenOpenEndedPromptTemplate, QwenThinkingOpenEndedPromptTemplate
+        
+        if thinking_mode:
+            return QwenThinkingOpenEndedPromptTemplate().return_appropriate_prompt(prompt_type)
+        else:
+            return QwenOpenEndedPromptTemplate().return_appropriate_prompt(prompt_type)
+    
+    @staticmethod
+    def return_appropriate_gemma_prompt(prompt_type: str):
+        """Return Gemma-specific prompts with Gemma chat template format."""
+        from code_generation.prompt_templates.gemma_prompt_template import GemmaOpenEndedPromptTemplate
+        
+        return GemmaOpenEndedPromptTemplate().return_appropriate_prompt(prompt_type)
+    
+    @staticmethod
+    def return_appropriate_deepseek_prompt(prompt_type: str):
+        """Return DeepSeek-specific prompts with DeepSeek chat template format."""
+        from code_generation.prompt_templates.deepseek_prompt_template import DeepSeekOpenEndedPromptTemplate
+        
+        return DeepSeekOpenEndedPromptTemplate().return_appropriate_prompt(prompt_type)
+    
+    @staticmethod
+    def return_appropriate_mistral_prompt(prompt_type: str):
+        """Return Mistral-specific prompts with Mistral chat template format."""
+        from code_generation.prompt_templates.mistral_prompt_template import MistralOpenEndedPromptTemplate
+        
+        return MistralOpenEndedPromptTemplate().return_appropriate_prompt(prompt_type)
+    
     def zero_shot_prompt(self) -> str:
         prompt = textwrap.dedent("""
         # Complete the given code snippet using the description below. 
@@ -143,43 +245,43 @@ class OpenEndedPromptTemplate(PromptTemplate):
         return prompt
 
 class LlamaOpenEndedPromptTemplate(OpenEndedPromptTemplate):
-    def zero_shot_prompt():
+    def zero_shot_prompt(self):
         prompt = textwrap.dedent("""
             <|begin_of_text|><|start_header_id|>system<|end_header_id|>
-            # Complete the given code snippet using the description below. Only complete the code function and do not add any other details.
+            You are a Python coding assistant. Complete the given function implementation. Only provide the complete function code including any necessary imports without any explanations, comments, test cases, or additional text. Do not include any tokens like <|end_of_text|> in your response.
             {task}<|eot_id|>
                                  
             <|start_header_id|>user<|end_header_id|>
-            # Code Snippet:
+            Complete this function:
+            
             {code}<|eot_id|>
                                  
-            # Your Answer: 
             <|start_header_id|>assistant<|end_header_id|>
         """)
         return prompt
 
-    def one_shot_prompt():
+    def one_shot_prompt(self):
         prompt = textwrap.dedent("""
             <|begin_of_text|><|start_header_id|>system<|end_header_id|>
-            # Complete the code for the following function given it's description. You may use the given example to write your code. Return your answer as a complete function.
+            You are a Python coding assistant. Complete the given function implementation. Only provide the complete function code including any necessary imports without any explanations, comments, test cases, or additional text. Do not include any tokens like <|end_of_text|> in your response.
             {task}<|eot_id|>
                                  
             <|start_header_id|>user<|end_header_id|>
-            # Code Snippet:
+            Complete this function:
+            
             {code}
-                                 
-            # Example:
+            
+            Example usage:
             {example}<|eot_id|>
                                  
-            # Your answer:
             <|start_header_id|>assistant<|end_header_id|>
         """)
         return prompt
 
-    def few_shot_prompt():
+    def few_shot_prompt(self):
         prompt = textwrap.dedent("""
             <|begin_of_text|><|start_header_id|>system<|end_header_id|>
-            # Complete the code for the following function given it's description. You may use the given examples to write your code. Return your answer as a complete function.
+            # Complete the code for the following function given it's description. You may use the given examples to write your code. Return your answer as a complete function including any necessary imports.
             {task}<|eot_id|>
                                  
             <|start_header_id|>user<|end_header_id|>

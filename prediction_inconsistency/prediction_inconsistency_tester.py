@@ -26,7 +26,11 @@ class LLMConsistencyTester(CodeGenerationTester):
     
     def process_llm_ans(prog: str) -> Any:
         try:
-            return ast.literal_eval(prog)
+            result = ast.literal_eval(prog)
+            # If the result is a tuple, extract the first element (the actual answer)
+            if isinstance(result, tuple) and len(result) >= 1:
+                return result[0]
+            return result
         except Exception:
             return prog.strip('"').strip("'") if isinstance(prog, str) else prog
 
@@ -222,7 +226,6 @@ class LLMConsistencyTester(CodeGenerationTester):
 
                     ans = ans_dict['ans']
                     ans = LLMConsistencyTester.process_llm_ans(ans)
-
                     log_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
                     
                     if task_type == InputPrediction.NAME:
