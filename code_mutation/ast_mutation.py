@@ -220,17 +220,10 @@ class ASTNodeHelper:
                 
             ## If statement checking for scenario 3 -> E.g.: i = var1
             #  The if statement also checks if the variable type has already been stored in the metadata_map and retrieves the variable type directly
-            elif isinstance(node, ast.Name) and self.metadata_map.get(node.id, None) is not None:
+            elif isinstance(node, ast.Name) and self.metadata_map.get(node.id, 'no_entry') is not 'no_entry':
                 stored_metadata = self.metadata_map[node.id]
-                if stored_metadata in (
-                        list.__name__,
-                        str.__name__,
-                        tuple.__name__,
-                        dict.__name__,
-                        int.__name__,
-                        float.__name__,
-                        type(None).__name__
-                    ):
+                data_types = (list.__name__, str.__name__, tuple.__name__, dict.__name__, int.__name__, float.__name__, type(None).__name__)
+                if any(data_type for data_type in data_types if data_type in stored_metadata):
                     return stored_metadata
                 else:
                     return eval(self.metadata_map[node.id])
@@ -283,7 +276,7 @@ class ASTNodeHelper:
 
                 else:
                     pass
-
+            
             ## None returned for nodes out of the scope of this method
             return None
 
