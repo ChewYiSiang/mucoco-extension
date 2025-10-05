@@ -55,10 +55,11 @@ class DataLogHelper:
         if log1.shape[0] == 0 or log2.shape[0] == 0:
             return 0, 0
         
-        # unmatched_ids = set()           # set storing all task_ids that did not have a match
         log1_inconsistencies = 0        # inconsistencies from log1
         log2_inconsistencies = 0        # inconsistencies from log2
         tot = 0                         # union between tasks solved correctly in both logs
+        log1_total_answered = 0
+        log2_total_answered = 0
         both_failed = 0                 # tasks where both logs failed
         identical_mutation_errors = 0   # tasks with IdenticalMutationError
         both_succeeded = 0              # tasks where both logs succeeded
@@ -84,6 +85,12 @@ class DataLogHelper:
 
             log1_result = log1_data['failure_type']
             log2_result = log2_data['failure_type']
+
+            if isinstance(log1_result, float) or isinstance(log1_result, str) and AssertionError.__name__ in log1_result:
+                log1_total_answered += 1
+
+            if isinstance(log2_result, float) or isinstance(log2_result, str) and AssertionError.__name__ in log2_result:
+                log2_total_answered += 1
 
 
             if (isinstance(log1_result, float) and (isinstance(log2_result, str) and AssertionError.__name__ in log2_result)) or (
@@ -139,5 +146,10 @@ class DataLogHelper:
         return {
             'log1_inconsistencies': log1_inconsistencies,
             'log2_inconsistencies': log2_inconsistencies,
-            'total_questions': tot
+            'total_inconsistency_questions': tot,
+            'log1_success': log1_total_answered - mask1.sum(),
+            'log2_success': log2_total_answered - mask2.sum(),
+            'log1_total_answered': log1_total_answered,
+            'log2_total_answered': log2_total_answered,
+            'total_tasks': total_tasks
         }

@@ -1,4 +1,4 @@
-from llm_models.code_llms import Mistral, OpenAILLM
+from llm_models.code_llms import Mistral, OpenAILLM, Codestral
 from llm_models.code_reasoning_llms import OpenAIReasoningLLM, DeepSeekReasonerLLM, ClaudeReasoningLLM
 from llm_models.gpu_code_llms import TransformersCodeLLM
 
@@ -95,6 +95,7 @@ class LLMModels:
         CLAUDE_REASONING = {"name": "claude-sonnet-4-5-20250929", "model_class": ClaudeReasoningLLM}
     
     class NonReasoningModels:
+        CODESTRAL = {"name": "codestral-latest", "model_class": Codestral}
         MISTRAL_SMALL_LATEST = {"name": "mistral-small-latest", "model_class": Mistral}
         GPT4O = {"name": "gpt-4o", "model_class": OpenAILLM}
         LLAMA_3_1_8B = {"name": "meta-llama/Llama-3.1-8B-Instruct", "model_class": TransformersCodeLLM}

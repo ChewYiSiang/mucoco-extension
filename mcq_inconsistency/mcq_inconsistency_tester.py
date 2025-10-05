@@ -236,8 +236,6 @@ class LLMMCQInconsistencyTester(CodeGenerationTester):
                     ans = LLMMCQInconsistencyTester.process_llm_ans(ans)
                     log_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
 
-                    time.sleep(2)
-
                 ## Running the formatted prompt into the LLM
                 try:
                     assert ans == answer
