@@ -98,11 +98,12 @@ class CodeGenerationTester(Tester):
     def process_llm_ans(text: str) -> str:
         # Clean chat template tokens
         chat_tokens = ['<|im_start|>', '<|im_end|>', '<|begin_of_text|>', '<|start_header_id|>', 
-                      '<|end_header_id|>', '<|eot_id|>', '<|end_of_text|>', 'system', 'user', 'assistant']
+                      '<|end_header_id|>', '<|eot_id|>', '<|end_of_text|>', 'system', 'user', 'assistant',
+                      '<start_of_turn>', '<end_of_turn>']
         for token in chat_tokens:
             text = text.replace(token, '')
         
-        # Remove common unwanted phrases
+        # Remove common unwanted phrases and feedback
         unwanted_phrases = [
             "Here's the complete function code:",
             "Here is the complete function:",
@@ -112,6 +113,14 @@ class CodeGenerationTester(Tester):
             "# Test the function",
             "# Testing the function:",
             ">>> task_func(",
+            "Your code looks correct",
+            "Your answer is correct",
+            "Good job!",
+            "Well done!",
+            "This code",
+            "The code above",
+            "It calculates",
+            "It uses the given requirements",
         ]
         for phrase in unwanted_phrases:
             text = text.replace(phrase, '')
@@ -119,6 +128,26 @@ class CodeGenerationTester(Tester):
         # Split on common separators and take the first part (the actual function)
         text = text.split('# Test')[0]  # Remove test sections
         text = text.split('>>>')[0]      # Remove interactive examples
+        text = text.split('<end_of_turn>')[0]  # Remove anything after Gemma end token
+        
+        # Remove any text that looks like feedback after code
+        lines = text.split('\n')
+        code_lines = []
+        code_started = False
+        
+        for line in lines:
+            # If we see a function definition, we're in code
+            if line.strip().startswith('def ') or line.strip().startswith('import ') or line.strip().startswith('from '):
+                code_started = True
+            
+            # If we're in code and see feedback-like text, stop
+            if code_started and any(feedback in line.lower() for feedback in 
+                                  ['your code', 'correct', 'good job', 'well done', 'this code', 'the code']):
+                break
+                
+            code_lines.append(line)
+        
+        text = '\n'.join(code_lines)
         
         match = re.search(r"```(?:python)?\n(.*?)```", text, re.DOTALL)
         if match:
