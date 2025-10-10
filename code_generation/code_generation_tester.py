@@ -99,7 +99,7 @@ class CodeGenerationTester(Tester):
         # Clean chat template tokens
         chat_tokens = ['<|im_start|>', '<|im_end|>', '<|begin_of_text|>', '<|start_header_id|>', 
                       '<|end_header_id|>', '<|eot_id|>', '<|end_of_text|>', 'system', 'user', 'assistant',
-                      '<start_of_turn>', '<end_of_turn>']
+                      '<start_of_turn>', '<end_of_turn>', '</end_of_turn>']
         for token in chat_tokens:
             text = text.replace(token, '')
         
@@ -129,6 +129,7 @@ class CodeGenerationTester(Tester):
         text = text.split('# Test')[0]  # Remove test sections
         text = text.split('>>>')[0]      # Remove interactive examples
         text = text.split('<end_of_turn>')[0]  # Remove anything after Gemma end token
+        text = text.split('</end_of_turn>')[0]  # Also handle incorrect closing format
         
         # Remove any text that looks like feedback after code
         lines = text.split('\n')
