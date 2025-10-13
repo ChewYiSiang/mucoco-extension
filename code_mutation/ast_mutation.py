@@ -278,7 +278,7 @@ class ASTNodeHelper:
                     pass
             
             ## None returned for nodes out of the scope of this method
-            return None
+            return type(None).__name__
 
         def visit_Assign(self, node):
             """
