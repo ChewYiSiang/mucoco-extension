@@ -21,7 +21,6 @@ class Mutations:
         DEMORGAN = 'demorgan'                                   # applies demorgan transformation onto boolean statements
         BOOLEAN_LITERAL = "boolean_literal"                     # converts boolean literal representations: E.g.: True -> not False
         COMMUTATIVE_REORDER = "commutative_reorder"             # applied functionality preserving commutative operations
-
         CONSTANT_UNFOLD = "constant_unfold"                     # unfolds constant expression into either multiplication or addition statements
         CONSTANT_UNFOLD_ADD = "constant_unfold_add"             # unfolds constant expression into addition statements
         CONSTANT_UNFOLD_MULT = "constant_unfold_mult"           # unfolds constant expression into multiplication statements

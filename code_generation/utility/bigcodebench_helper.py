@@ -9,7 +9,6 @@ import io
 import contextlib
 import matplotlib.pyplot as plt
 import multiprocessing
-import os
 
 class CodeGenerationBigCodeBenchHelper(DatabaseHelper):
     @staticmethod

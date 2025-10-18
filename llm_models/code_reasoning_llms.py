@@ -1,6 +1,5 @@
 from llm_models.code_llms import CodeLLM
 from typing import Dict
-from langchain.chains import LLMChain
 import anthropic
 from dotenv import load_dotenv
 import os
@@ -40,7 +39,7 @@ class DeepSeekReasonerLLM(CodeReasoningLLM):
         prompt = prompt_template.format(**input_variables)
 
         response = self.client.chat.completions.create(
-            model="deepseek-chat",
+            model=self.model_name,
             messages=[
                 {"role": "system", "content": self.return_system_prompt()},
                 {"role": "user", "content": prompt},

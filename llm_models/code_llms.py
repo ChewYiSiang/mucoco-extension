@@ -4,7 +4,7 @@ from huggingface_hub import login
 from langchain_mistralai.chat_models import ChatMistralAI
 from huggingface_hub import InferenceClient
 from typing import Dict
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from mistralai import Mistral
 from abc import ABC, abstractmethod
 from dotenv import load_dotenv

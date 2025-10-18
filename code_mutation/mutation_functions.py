@@ -592,6 +592,8 @@ class CodeMutator:
         except Exception as e:
             raise e
         mutated_sol = self.mutated_dict['full_sol']
+        print(mutation_type)
+        print(mutated_sol)
         self.mutated_dict['question'] = mutated_sol
 
         ## Checking if the mutated solution is identical to the original solution
