@@ -179,9 +179,6 @@ To start out with obtaining code inconsistencies in LLMs, you conduct a simple e
   
   4. Compare the output logs and determine where the inconsistencies are. 
 
-### Further expansions
-Unfortunately, since this project is still under development, a large part of the docstrings and documentation are incomplete. You may feel free to contact me through email on jinchou_chua@alumni.sutd.edu.sg should you have any questions or require any help. Nonetheless, I have included some steps that you can take to help you navigate and expand upon this project's architecture. 
-
 #### Adding new LLM Models
 Should you wish to add on more models to the project, you can navigate to `llm_models/code_llms.py` and add a new class for running your desired LLM there. You will need to ensure that your new class inherits from the `CodeLLM` class, and contains the abstract methods as stated.
 

@@ -206,9 +206,7 @@ class TurbulenceTester(CodeGenerationTester):
                             func_name = func_name,
                             func_output = processed_func_output
                             )
-                        
-                        print('oki')
-                        
+                                                
                         log_data_entry['func_output'] = processed_func_output
 
                         # Verification Step 2: Verifying LLM answer with test suite
@@ -216,8 +214,6 @@ class TurbulenceTester(CodeGenerationTester):
                             tests = codemutator.mutated_dict['check_function'],
                             solution = ans,
                         )
-
-                        print('no oki')
                         
                         task_pass_count += 1
 

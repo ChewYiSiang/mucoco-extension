@@ -270,9 +270,7 @@ class CodeMutator:
             prog_ans = ans_queue.get()
         else:
             raise ValueError("Function failed to execute or return a result")
-        
-        print('hehe', prog_ans)
-        
+            
         ### Answer Verification Step
         CodeMutator.verify_with_canon_ans(func_output=prog_ans, canon_ans=output_args)
 
@@ -485,14 +483,10 @@ class CodeMutator:
                         input_metadata = PredictionInconsistencyHumanEvalHelper.extract_input_metadata(examples = examples, qn = full_sol)
                     elif task_set in (CRUXEVAL, TURBULENCE):
                         input_metadata = PredictionInconsistencyCruxEvalHelper.extract_input_metadata(prog=full_sol, test_input=input_args)
-                    print(input_metadata)
                     variable_metadata = CodeMutator.obtain_variable_types(tree, input_metadata)
-                    print(variable_metadata)
                     merged_metadata = input_metadata | variable_metadata
-                    print(merged_metadata)
                     mutated_sol = CodeMutator.mutate_for_to_while(tree = tree, input_metadata=merged_metadata)  
-                    # print(full_sol)
-                    # print(mutated_sol)
+
                 elif mutation_type == FOR2ENUMERATE:
                     mutated_sol = CodeMutator.mutate_for_to_enumerate(tree = tree)
                 
@@ -592,8 +586,7 @@ class CodeMutator:
         except Exception as e:
             raise e
         mutated_sol = self.mutated_dict['full_sol']
-        print(mutation_type)
-        print(mutated_sol)
+
         self.mutated_dict['question'] = mutated_sol
 
         ## Checking if the mutated solution is identical to the original solution
@@ -801,7 +794,6 @@ class CodeMutator:
         input_metadata: Dict[str, str]
     ) -> str:
         try: 
-            print(input_metadata)
             mutated_source = ASTNodeHelper.ForToWhileNodeTransformer(input_metadata= input_metadata).visit(tree)
         except Exception as e:
             raise MutationFailedError(error = e)

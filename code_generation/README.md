@@ -7,6 +7,7 @@ This project sub-directory is as follows:
 - `project-root/code_generation`
   - `README.md`                       # this file
   - `prompt_templates`                 # prompt templates for each model
+    - `deepseek_prompt_template.py`
     - `gemma_prompt_template.py`
     - `mistral_prompt_template.py`
     - `prompt_template.py`

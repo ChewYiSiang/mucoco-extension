@@ -33,9 +33,6 @@ def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: mul
 class Tester:
     def execute_llm(self, model_name: str, input_variables: Dict[str, str], prompt_template: str, llm_model : Callable = Mistral, ):
         llm_timeout = 30
-
-        if model_name == ReasoningModels.GPT4O_REASONING["name"]:
-            model_name = NonReasoningModels.GPT4O['name']
             
         ## Running the llm on the input variables and the prompt template
         multiprocessing_queue = multiprocessing.Queue()
