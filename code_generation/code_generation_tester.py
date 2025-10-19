@@ -9,7 +9,6 @@ import os
 import io
 import matplotlib.pyplot as plt
 import contextlib
-import time
 import pandas as pd
 import multiprocessing
 import shutil
@@ -163,8 +162,6 @@ class CodeGenerationTester(Tester):
         if task_set not in CodeGeneration.BENCHMARKS:
             raise ValueError(f"{task_set} is an invalid benchmark dataset for code generation. Only {CodeGeneration.BENCHMARKS} datasets are valid.")
         
-        # TODO: Needs an additional step checking if the given prompt_type is valid for the specific benchmark
-
         task_pass_count = 0             # int variable tracking the number of tasks that have passed
         failed_validity = []            # list storing the test case id that have failed the check functions
         timeout = 8                     # int variable indicating the number of seconds the LLM generated program should complete running by

@@ -4,9 +4,7 @@ from code_mutation.mutation_functions import CodeMutator, InvalidIteratorError, 
 from utility.constants import PromptTypes, Tasks, MCQInconsistency, CodeMMLU, NonReasoningModels, ReasoningModels
 from typing import Callable, Dict, Any, List
 from tqdm import tqdm
-import time
 import ast
-import multiprocessing
 from code_mutation.mutation_relations import check_for_mutation_conflicts
 from llm_models.gpu_code_llms import TransformersCodeLLM
 from mcq_inconsistency.prompt_templates.prompt_template import MCQInconsistencyPromptTemplate

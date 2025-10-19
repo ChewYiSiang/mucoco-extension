@@ -78,6 +78,29 @@ class Codestral(CodeLLM):
         return result.choices[0].message.content
 
 
+class DeepSeekLLM(CodeLLM):
+    def __init__(self, model_name: str = 'deepseek-chat'):
+        self.model_name = model_name
+        self.client = OpenAI(api_key = os.environ.get('DEEPSEEK_API_KEY'), base_url="https://api.deepseek.com")
+
+    def return_system_prompt(self) -> str:
+        system_prompt = """"""
+        return system_prompt
+    
+    def invoke(self, input_variables, prompt_template):
+        prompt = prompt_template.format(**input_variables)
+
+        response = self.client.chat.completions.create(
+            model=self.model_name,
+            messages=[
+                {"role": "system", "content": self.return_system_prompt()},
+                {"role": "user", "content": prompt},
+            ],
+            stream=False,
+            temperature=0,
+        )
+        return response.choices[0].message.content
+
 class MistralGPU(CodeLLM):
     def __init__(self, model_name):
         super().__init__(model_name)

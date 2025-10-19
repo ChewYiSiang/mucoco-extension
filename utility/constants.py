@@ -1,5 +1,5 @@
-from llm_models.code_llms import Mistral, OpenAILLM, Codestral
-from llm_models.code_reasoning_llms import OpenAIReasoningLLM, DeepSeekReasonerLLM, ClaudeReasoningLLM
+from llm_models.code_llms import OpenAILLM, Codestral, DeepSeekLLM
+from llm_models.code_reasoning_llms import OpenAIReasoningLLM
 from llm_models.gpu_code_llms import TransformersCodeLLM
 
 class PromptTypes:
@@ -89,16 +89,12 @@ InputPrediction = Tasks.InputPrediction
 class LLMModels:
     class ReasoningModels:
         GPT5 = {"name": "gpt-5", "model_class": OpenAIReasoningLLM}
-        GPT4O_REASONING = {"name": "gpt-4o-reasoning", "model_class": OpenAIReasoningLLM}
-        DEEPSEEK_REASONER = {"name": "deepseek-reasoner", "model_class": DeepSeekReasonerLLM}
-        CLAUDE_REASONING = {"name": "claude-sonnet-4-5-20250929", "model_class": ClaudeReasoningLLM}
     
     class NonReasoningModels:
         CODESTRAL = {"name": "codestral-latest", "model_class": Codestral}
-        MISTRAL_SMALL_LATEST = {"name": "mistral-small-latest", "model_class": Mistral}
         GPT4O = {"name": "gpt-4o", "model_class": OpenAILLM}
+        DEEPSEEK_CHAT = {"name": "deepseek-chat", "model_class": DeepSeekLLM}
         LLAMA_3_1_8B = {"name": "meta-llama/Llama-3.1-8B-Instruct", "model_class": TransformersCodeLLM}
-        LLAMA_3_1_70B = {"name": "meta-llama/Llama-3.1-70B-Instruct", "model_class": TransformersCodeLLM}
 
 
 ReasoningModels = LLMModels.ReasoningModels

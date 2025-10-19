@@ -4,7 +4,6 @@ from code_mutation.mutation_functions import CodeMutator
 from utility.constants import PromptTypes, Tasks, InputPrediction, MCQInconsistency, CruxEval, HumanEval, ReasoningModels, NonReasoningModels
 from typing import Callable, Dict, Any, List
 from tqdm import tqdm
-import time
 import ast
 import copy
 import torch
