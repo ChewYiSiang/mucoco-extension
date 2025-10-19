@@ -4,27 +4,33 @@ This folder contains files required for running MuCoCo Prediction Inconsistency 
 
 This project sub-directory is as follows:
 
-- `project-root/prediction_inconsistency`
-  - `README.md`                             # this file
-  - `prompt_templates`                       # prompt templates for each model
-    - `deepseek_prompt_template.py`
-    - `gemma_prompt_template.py`
-    - `mistral_prompt_template.py`
-    - `prompt_template.py`
-    - `qwen_prompt_template.py`
-  - `test_notebooks`                         # Jupyter notebooks for prediction inconsistency experiments
-    - `crux_eval_database_builder.ipynb`
-    - `human_eval_database_builder.ipynb`
-    - `input_prediction_consistency_test_notebook_cruxeval.ipynb`
-    - `input_prediction_consistency_test_notebook_humaneval.ipynb`
-    - `output_prediction_consistency_test_notebook_cruxeval.ipynb`
-    - `output_prediction_consistency_test_notebook_humaneval.ipynb`
-  - `utility`                                # helper scripts for dataset management and testing
-    - `cruxeval_helper.py`
-    - `database_helper.py`
-    - `humaneval_helper.py`
-  - `prediction_inconsistency_tester.py`
+```markdown
+project-root/prediction_inconsistency
+├── README.md # this file
+├── ❌ prompt_templates # prompt templates
+│ ├── deepseek_prompt_template.py
+│ ├── gemma_prompt_template.py
+│ ├── mistral_prompt_template.py
+│ ├── prompt_template.py
+│ └── qwen_prompt_template.py
+│
+├── test_notebooks # Notebooks for pred inconsistency experiments
+│ ├── crux_eval_database_builder.ipynb
+│ ├── human_eval_database_builder.ipynb
+│ ├── input_prediction_consistency_test_notebook_cruxeval.ipynb
+│ ├── input_prediction_consistency_test_notebook_humaneval.ipynb
+│ ├── output_prediction_consistency_test_notebook_cruxeval.ipynb
+│ └── output_prediction_consistency_test_notebook_humaneval.ipynb
+│
+├── ❌ utility
+│ ├── cruxeval_helper.py
+│ ├── database_helper.py
+│ └── humaneval_helper.py
+│
+└── ❌ prediction_inconsistency_tester.py
+```
 
+Files and folders marked with a '❌' do not need to be visited for running the relevant MuCoCo experiments.
 
 ## General LLM and MongoDB setup for MuCoCo Prediction Inconsistency Experiments
 
