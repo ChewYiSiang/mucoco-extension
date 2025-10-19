@@ -14,6 +14,7 @@ project-root/baseline/turbulence_benchmark
 │
 ├── turbulence_benchmark_test_notebook.ipynb
 ├── turbulence_database_builder.ipynb
+├── Turbulence Failures.pdf                 # PDF document containing an overview on Turbulence qns that fail
 └── ❌ turbulence_tester.py
 ```
 
