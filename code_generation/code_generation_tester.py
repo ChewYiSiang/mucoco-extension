@@ -9,7 +9,6 @@ import os
 import io
 import matplotlib.pyplot as plt
 import contextlib
-import time
 import pandas as pd
 import multiprocessing
 import shutil
@@ -34,9 +33,6 @@ def invoke_llm(input_variables: Dict[str, str], prompt_template: str, queue: mul
 class Tester:
     def execute_llm(self, model_name: str, input_variables: Dict[str, str], prompt_template: str, llm_model : Callable = Mistral, ):
         llm_timeout = 30
-
-        if model_name == ReasoningModels.GPT4O_REASONING["name"]:
-            model_name = NonReasoningModels.GPT4O['name']
             
         ## Running the llm on the input variables and the prompt template
         multiprocessing_queue = multiprocessing.Queue()
@@ -193,8 +189,6 @@ class CodeGenerationTester(Tester):
         if task_set not in CodeGeneration.BENCHMARKS:
             raise ValueError(f"{task_set} is an invalid benchmark dataset for code generation. Only {CodeGeneration.BENCHMARKS} datasets are valid.")
         
-        # TODO: Needs an additional step checking if the given prompt_type is valid for the specific benchmark
-
         task_pass_count = 0             # int variable tracking the number of tasks that have passed
         failed_validity = []            # list storing the test case id that have failed the check functions
         timeout = 8                     # int variable indicating the number of seconds the LLM generated program should complete running by

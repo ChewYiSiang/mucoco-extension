@@ -67,7 +67,7 @@ class TurbulenceLogHelper:
         both_failed = 0                 # tasks where both logs failed
         both_succeeded = 0              # tasks where both logs succeeded
 
-        print(f"Starting comparison of {self.total_questions} tasks...")
+        # print(f"Starting comparison of {self.total_questions} tasks...")
 
         ## Checking for inconsistencies between both logs
 
@@ -150,7 +150,7 @@ class TurbulenceLogHelper:
             for idx, l in log_task_qns.iterrows():
                 if isinstance(l['failure_type'], float):
                     log1_correct +=1 
-                elif "AssertionError" in l['failure_type']:
+                elif "AssertionError" in l['failure_type'] and "Mutation" not in l['failure_type']:
                     log1_assertion += 1
 
             for (_, row1), (_, row2) in combinations(log_task_qns.iterrows(), 2):
@@ -158,17 +158,15 @@ class TurbulenceLogHelper:
                 row2_failure_type = str(row2['failure_type']).strip()
 
                 if not any(
-                    (isinstance(f, float) or (isinstance(f, str) and "assertionerror" in f.lower()))
+                    (isinstance(f, float) or (isinstance(f, str) and "assertionerror" in f.lower() and "mutation" not in f.lower()))
                     for f in [row1_failure_type, row2_failure_type]
-                ):
+                ) and not ("AssertionError" in row1_failure_type and "AssertionError" in row2_failure_type):
                     continue
                 total_comparisons += 1
                 if row1_failure_type != row2_failure_type:
                 
                     # print(task_id, idx1, row1['failure_type'], idx2, row2['failure_type'])
                     inconsistency_count += 1
-
-        print(log1_correct, log1_assertion)
         
         # return f"{inconsistency_count}/{total_comparisons}", f"{round(inconsistency_count*100/total_comparisons, 2)}"
         return {
@@ -200,7 +198,7 @@ class TurbulenceLogHelper:
             log_task_qns = log[log['task_id'].str.contains(rf'^{task_id}(?:_|$)', regex=True)].reset_index(drop = True)
 
             if not any(
-                (isinstance(f['failure_type'], float) or (isinstance(f['failure_type'], str) and "assertionerror" in f.to_string().lower()))
+                (isinstance(f['failure_type'], float) or (isinstance(f['failure_type'], str) and "assertionerror" in f.to_string().lower() and "mutation" not in f.to_string().lower()))
                 for idx, f in log_task_qns.iterrows()
             ):
                 continue

@@ -70,16 +70,16 @@ class MCQPromptTemplate(PromptTemplate):
     def return_model_appropriate_prompt(prompt_type: str, model_name: str = None, thinking_mode: bool = False):
         """Return the appropriate prompt template based on model type."""
         # Check if it's a Qwen model
-        if model_name and ('qwen' in model_name.lower() or 'Qwen' in model_name):
+        if model_name and ('qwen' in model_name.lower()):
             return MCQPromptTemplate.return_appropriate_qwen_prompt(prompt_type, thinking_mode)
         # Check if it's a Gemma model
-        elif model_name and ('gemma' in model_name.lower() or 'Gemma' in model_name):
+        elif model_name and ('gemma' in model_name.lower()):
             return MCQPromptTemplate.return_appropriate_gemma_prompt(prompt_type)
         # Check if it's a DeepSeek model
-        elif model_name and ('deepseek' in model_name.lower() or 'DeepSeek' in model_name):
+        elif model_name and ('deepseek' in model_name.lower()):
             return MCQPromptTemplate.return_appropriate_deepseek_prompt(prompt_type)
-        # Check if it's a Mistral model
-        elif model_name and ('mistral' in model_name.lower() or 'Mistral' in model_name):
+        # Check if it's a Mistral Codestral model
+        elif model_name and ('codestral' in model_name.lower()):
             return MCQPromptTemplate.return_appropriate_mistral_prompt(prompt_type)
         else:
             # Use generic templates for other models
@@ -150,8 +150,8 @@ class OpenEndedPromptTemplate(PromptTemplate):
         # Check if it's a DeepSeek model
         elif model_name and ('deepseek' in model_name.lower() or 'DeepSeek' in model_name):
             return OpenEndedPromptTemplate.return_appropriate_deepseek_prompt(prompt_type)
-        # Check if it's a Mistral model
-        elif model_name and ('mistral' in model_name.lower() or 'Mistral' in model_name):
+        # Check if it's a Mistral codestral model
+        elif model_name and ('codestral' in model_name.lower()):
             return OpenEndedPromptTemplate.return_appropriate_mistral_prompt(prompt_type)
         else:
             # Use generic templates for other models

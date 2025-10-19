@@ -4,12 +4,10 @@ from code_mutation.mutation_functions import CodeMutator
 from utility.constants import PromptTypes, Tasks, InputPrediction, MCQInconsistency, CruxEval, HumanEval, ReasoningModels, NonReasoningModels
 from typing import Callable, Dict, Any, List
 from tqdm import tqdm
-import time
 import ast
 import copy
 import torch
 import multiprocessing
-from llm_models.code_llms import Mistral
 from llm_models.gpu_code_llms import TransformersCodeLLM
 from code_mutation.mutation_relations import check_for_mutation_conflicts
 from prediction_inconsistency.prompt_templates.prompt_template import PredictionInconsistencyPromptTemplate

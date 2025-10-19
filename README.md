@@ -1,18 +1,11 @@
-# CodeLLM Consistency Testing
+# MuCoCo Code Inconsistency Testing Framework
 
-A research framework for evaluating the consistency and reliability of Large Language Models (LLMs) in code generation tasks through systematic mutation testing and behavioral analysis.
+A research framework for evaluating the consistency and reliability of Large Language Models (LLMs) in code-related tasks through code mutation.
 
 ## Overview
 
-This project investigates LLM code consistency by testing LLMs with code mutation. Code inconsistency refers to instances where a LLM could only answer 1 of 2 semantically identical problems correctly. Models with high code inconsistency scores could suggest that the models do not have a complete understanding of the program.
+This project investigates LLM code consistency by testing LLMs with mutated code benchmarks. Code inconsistency refers to instances where a LLM could only answer 1 of 2 semantically identical problems correctly. Models with high code inconsistency scores could suggest that the models do not have a complete understanding of the program.
 
-The research focuses on three main areas:
-
-1. **Code Generation Testing** - Evaluating LLM performance on standard coding benchmarks
-2. **Code Mutation Analysis** - Testing consistency across semantically equivalent code variations  
-3. **Consistency Measurement** - Quantifying behavioral differences in LLM responses
-
-## Key Features
 
 ### Code Mutation Types
 
@@ -43,25 +36,50 @@ while preserving the semantics of the original program. The framework supports m
 
 ### Supported LLM Models
 
-- Mistral AI models (via LangChain)
-- Extensible architecture for adding new models
+MuCoCo framework supports the following LLMs:
+- Codestral-2508
+- GPT-4o
+- GPT-5
+- DeepSeek-V3.2-Exp
+- Qwen2.5-Coder-14B-Instruct
+- Gemma-3-12b-it
+- Llama-3.1-8b
 
-### Testing Frameworks
-
-- **HumanEval Integration**: Uses the HumanEval dataset for standardized code generation benchmarks
-- **Multi-process Execution**: Parallel testing for efficiency
-- **MongoDB Storage**: Persistent storage for test results and analysis
-- **CSV Logging**: Detailed result tracking and export capabilities
+It should be noted that Codestral, GPT-4o, GPT5 and DeepSeek experiments were conducted through API keys, which you will need to obtain from their respective websites. Qwen, Gemma and Llama models have their model weights downloaded from HuggingFace from their respective repositories. Experiments using model weights downloaded from HuggingFace are conducted using [Google Colab](https://colab.google/), while models using API keys are conducted through a local setup.
 
 ## Getting Started
 
 ### Downloading this repository
-Your first step is to download this repository and save it locally on your computer. It is recommended that you use [VSCode](https://code.visualstudio.com/) for this project. VSCode is a lightweight, open-source code editor developed by Microsoft that you will use for writing code. 
+Your first step is to download this repository and save it locally on your computer. It is recommended that you use [VSCode](https://code.visualstudio.com/) for this project.
+
+### High-level Overview of Project Directory
+This section covers the high level overview of the overall project directory. 
+Folders marked with a '❌' do not need to be explored for running experiments and generally contain scripts necessary for running the project.
+
+```markdown
+- Code Reasoning Model Research Project
+├── baseline/                     # Turbulence baseline testing
+├── code_generation/              # MuCoCo code generation experiments
+├── ❌ code_mutation/             
+├── ❌ datasets/                  
+├── ❌ llm_models/                
+├── mcq_inconsistency/            # MuCoCO mcq inconsistency experiments
+├── MuCoCo_results/               # Scripts used for aggregating MuCoCo results
+├── prediction_inconsistency/     # MuCoCo prediction inconsistency experiments
+├── ❌ utility/
+├── .env.example                  # .env.example for your .env file
+├── ❌ .gitattributes
+├── ❌ .gitignore
+├── ❌ database.py  
+├── README.md                     # this file
+├── requirements-colab-big-code-bench.txt
+├── requirements-colab.txt
+├── requirements.txt
+└── setup.ipynb
+```
 
 ### Creating your `.env` file
-Your next step is to create and populate your `.env` file. A `.env` file is used to store sensitive details such as API keys and Personal Access Tokens to your personal accounts. This file will only be stored locally and should not be pushed into your GitHub.
-
-To create your `.env` file, simply copy the `.env.example` file and rename it to `env`. For running this project locally, you will only need to fill in the "MISTRAL_API_KEY" and "MONGODB_URI" fields. If you plan to use Google Colab, you can contact the team for more information as the setup is slightly different.
+Your next step is to create and populate your `.env` file. To create your `.env` file, simply copy the `.env.example` file and rename it to `.env`. To run all experiments on all models, you will need to ensure the necessary API tokens are filled in. 
 
 ### MongoDB
 This project stores the dataset in MongoDB databases. Hence, you will need a MongoDB URI to store the datasets.
@@ -74,28 +92,54 @@ This project stores the dataset in MongoDB databases. Hence, you will need a Mon
      The first section involves whitelisting IP address to access your cluster. You can go with "Allow Access From Anywhere" and add it to your "Network Access". When you head to the Network Access tab afterwards, you should see the IP address "0.0.0.0/0" in the list.
 
      The second section involves creating users for your database. Create your first user for the database. Choose an appropriate username and password for this user. Should your team wish to share a single database, you can head to the "Database Access" tab and create more users from there.
+
   6. Now, you will need to connect to your cluster to add and pull data from the databases in the cluster. To connect to the cluster from VSCode, navigate to the "Clusters" page and click on "Connect". Then, select the option "MongoDB for VSCode" and follow the steps on the pop-up page. From there, you will form your MongoDB Connection String (URI)
 
      For example, if your cluster name is "Question_Database", your username is "AlexRider" and your password is "Ark_Angel", then your MongoDB URI should look something like this: "mongodb+srv://AlexRider:Ark_Angel@Question_Database.ovenrr0.mongodb.net/". Save your MongoDB URI in your `.env` file under the name "MONGODB_URI"
 
      This cluster will be used to store collections, which will house the datasets that you will be using. 
-  8. I would recommend that you download [MongoDB Compass](https://www.mongodb.com/products/tools/compass) for an intuitive UI to view any changes / entries in the MongoDB database conveniently. Alternatively, you can still use the MongoDB webpage to view the database.
+  8. It is recommend for users to download [MongoDB Compass](https://www.mongodb.com/products/tools/compass) for an intuitive UI to view any changes / entries in the MongoDB database conveniently. Alternatively, you can still use the MongoDB webpage to view the database.
 
-### Mistral
+## Model Setup
+This section will be covering the steps you need to take to set up the models for running MuCoCo experiments. It will be split into two sections - models using API keys and models using HuggingFace transformers that are run on Google Colab (or GPU)
 
-You can start running some experiments with LLMs by Mistral AI. Mistral AI is a French startup (founded in 2023) that builds high-performance large language models, many of which are open-source. You will need the Mistral API to call its models. 
+### Models Using API Keys
+It should be noted that models that require API keys generally require credits to run and will require you to top up.
 
-  1. To obtain your own Mistral API Key, simply head to the [Mistral AI](https://mistral.ai/) website and  sign up or sign in to an existing account. Complete any sign up procedures.
+#### Codestral
+You will need a Mistral API key to use Codestral. 
+
+  1. To obtain your own Mistral API Key, simply head to the official [Mistral AI](https://mistral.ai/) website and  sign up or sign in to an existing account. Complete any sign up procedures.
   2. Next, navigate to the homepage of your account. On the left hand side of the homepage, you should see a tab called "API Keys". Head to that page and create a new key. You may leave the expiration date empty.
-  3. On the next pop-up, you should be presented with the API key. Copy down the API key onto your `.env` file under the name "MISTRAL_API_KEY".
+  3. On the next pop-up, you should be presented with the API key. Copy down the API key onto your `.env` file under the name `CODESTRAL_API_KEY`.
 
-By this step, you should have your "MISTRAL_API_KEY" and "MONGODB_URI" fields filled in your `.env` file.
+#### GPT Models (GPT-4o and GPT-5)
+You will need an OpenAI API key to use GPT-4o and GPT-5.
+
+1. Head to the official [Open AI Platform](https://platform.openai.com/api-keys) Website for API keys.
+2. Login to your existing account or sign up.
+3. Click on "Create new secret key" button on the the top right of the page.
+4. Complete the rest of the steps and save your Open AI API key under `OPENAI_API_KEY` in `.env`
+
+#### DeepSeek 
+You will need a DeepSeek API key to use DeepSeek-V3.2.
+
+1. Head to the official [DeepSeek Platform](https://platform.deepseek.com/sign_in) and sign in.
+2. Login to your existing account or sign up.
+3. Once you are logged in into DeepSeek Platform, navigate to the "API Keys" tab on the left side.
+4. Click on "Create new API key" and save your DeepSeek API key under `DEEPSEEK_API_KEY` in `.env`
+
+
+By this step, you should have your `CODESTRAL_API_KEY`, `DEEPSEEK_API_KEY`, `OPENAI_API_KEY` and `MONGODB_URI` fields filled in your `.env` file.
+
+### Models Using Google Colab
+
 
 ## Running the notebooks
 There are two types of notebooks: **database builder notebooks** and **notebooks for running experiments**. Database builder notebooks build your database on MongoDB using `.csv` dataset files downloaded from HuggingFace. On the other hand, experiment notebooks are used for running code inconsistency experiments.
 
 ### Creating a virtual environment
-Before running the notebooks, you will need to create a Python Virtual Environment (venv). A virtual environment is an isolated workspace that allows you to install and manage project-specific dependencies without affecting your system-wide Python installation. It is good practice to always create an isolated venv for each of your Python project. 
+Before running the notebooks, you will need to create a Python Virtual Environment (venv). 
 
 Do note that this set up process is specific to users using the MacOS. If you are using Windows or any other OS, you may still follow these steps, but some terminal commands will not work as intended and you will need to do some troubleshooting by yourself. 
 
@@ -120,105 +164,17 @@ pip install -r requirements.txt
 Wait for the packages to finish installing. You may need to do some troubleshooting should you run into any dependency installation conflicts at this stage. 
 
 ### Building the database
-  1. Ensure that you have the datasets downloaded in `.csv` format. From the project's main directory, the csv datasets should be under `datasets/open_ended_format`. You should have datasets for [BigCodeBench](https://arxiv.org/abs/2406.15877), [CodeMMLU](https://arxiv.org/abs/2410.01999), [CruxEval](https://arxiv.org/abs/2401.03065), and a modified HumanEval dataset. You may refer to the links on each of the datasets to the research papers for the datasets to understand more.
-
-     Benchmark datasets are used to grade the performance of LLMs. Each benchmark can focus on different aspects, such as general knowledge, chemistry, biology, mathematics and more. In the case of this project, the benchmark datasets we are using are focused on Python programming. 
-  2. Next, from the project's root directory, navigate to the folder `1. hackathon_notebooks`. You should see 3 folders here, namely `code_generation`, `input_output_prediction` and `mcq_inconsistency`. Choose the task that you wish start with. In this tutorial, we will only be running through the process with the `HumanEval` dataset. However, other datasets should have an identical process. 
-  3. Navigate to `code_generation/humaneval_database_builder.ipynb`. Select the venv that you created and run all the cells.
-  4. Once all cells in the notebook have finished running successfully, you may check the dataset in your MongoDB cluster.
+  1. Ensure that you have the datasets downloaded in `.csv` format. From the project's main directory, the csv datasets should be under `datasets/open_ended_format`. You should have datasets for 
+  [BigCodeBench](https://arxiv.org/abs/2406.15877), [CodeMMLU](https://arxiv.org/abs/2410.01999), [CruxEval](https://arxiv.org/abs/2401.03065), and a modified [HumanEval](https://arxiv.org/abs/2107.03374) dataset. 
+  2. Navigate to `code_generation/test_notebooks` to start setting up for code generation experiments.
+  3. Next, you may head to `mcq_inconsistency` or `prediction_inconsistency` for the respective MuCoCo experiments.
 
 #### Notes for database building
   1. You will need to run `code_generation/humaneval_database_builder.ipynb` before you can run `input_output_prediction/humaneval_database_builder.ipynb` else it will fail. The input_output_prediction for humaneval database builder relies on the code generation counterpart.
   2. When building the database for BigCodeBench dataset, there may some "residual" files from the dataset that will appear in the directory. You can delete these files without any problems. 
 
-### Running the experiments
-Once you have downloaded the dataset and it's been successfully stored in your MongoDB cluster, you can start running experiments. Continuing from the steps above, we will be running through the steps for code generation tasks only. However, the steps should be identical for other experiments. Do note that you **will** need to run the corresponding dataset_builder Python notebook before you can run any experiments.
-
-  1. Navigate to `code_generation/code_generation_experiments.ipynb`
-  2. Run all the cells. For the method `run_code_generation_test`, there are some input parameters that you can modify accordingly. In short, these are some parameters that you will need:
-     
-     a. `prompt_helper` [Callable]: This parameter expects a `Callable` function input. This function input should return the appropriate prompt template that you wish to use.
-     
-     b. `num_tests` [int]: An integer indicating the number of tests you wish to run.
-     
-     c. `prompt_type` [str]: The prompt type, which can either be ZERO_SHOT, ONE_SHOT or FEW_SHOT. If you wish to add more prompt variations, feel free to add on to the source code.
-     
-     d. `output_file_path` [str]: The output file path where the results of the run will be stored in.
-     
-     e. `task_set` [str]: The benchmark dataset to run on.
-     
-     f. `continue_from_task` [str] = None: The `_id` of the task to continue running the experiment from. This comes in handy should your experiment fail.
-     
-     g. `mutations` [List[str]] = None: A list of strings representing the type of mutations you wish to run. 
-     
-  Do read the docstring of the respective methods for more information.
 
 ### Identify Code Inconsistencies
-To start out with obtaining code inconsistencies in LLMs, you conduct a simple experiment.
-  1. Run a code generation experiment with **no mutations** on the code generation experiment Python notebook. Your `run_code_generation_test` input should look something like the snippet below.
-  ```
-    pass_count = llmtester.run_code_generation_test(
-      prompt_helper = OpenEndedPromptTemplate().return_appropriate_prompt(prompt_type),
-      num_tests = num_tests,
-      prompt_type = prompt_type,
-      output_file_path = output_file_path,
-      task_set = task_set,
-      )
-  ```
-  3. Run a second experiment with **random mutation**. Your `run_code_generation_test` input should look something like the snippet below.
-  ```
-    pass_count = llmtester.run_code_generation_test(
-      prompt_helper = OpenEndedPromptTemplate().return_appropriate_prompt(prompt_type),
-      num_tests=num_tests,
-      prompt_type= prompt_type,
-      output_file_path=output_file_path,
-      task_set = task_set,
-      mutations = [RANDOM_MUTATION]    # RANDOM_MUTATION should be declared in one of the earlier cells in the same notebook
-      )
-  ```
-  
-  4. Compare the output logs and determine where the inconsistencies are. 
+Scripts for identifying code inconsistency scores are found under `MuCoCo_results/notebooks` from the project root directoy. The notebooks are named according to the RQ the results are reported in. Navigate to that project sub directory for more information.
 
-### Further expansions
-Unfortunately, since this project is still under development, a large part of the docstrings and documentation are incomplete. You may feel free to contact me through email on jinchou_chua@alumni.sutd.edu.sg should you have any questions or require any help. Nonetheless, I have included some steps that you can take to help you navigate and expand upon this project's architecture. 
-
-#### Adding new LLM Models
-Should you wish to add on more models to the project, you can navigate to `llm_models/code_llms.py` and add a new class for running your desired LLM there. You will need to ensure that your new class inherits from the `CodeLLM` class, and contains the abstract methods as stated.
-
-## Research Applications
-
-This framework enables research into:
-
-- **LLM Robustness**: How consistent are models across equivalent inputs?
-- **Mutation Impact**: Which code transformations most affect LLM performance?
-- **Model Comparison**: Systematic comparison of different LLM architectures
-- **Prompt Engineering**: Effect of different prompting strategies on consistency
-
-## Data Analysis
-
-The framework generates detailed logs for analysis:
-
-- Test execution results and timing
-- Code mutation success/failure rates  
-- LLM response variations across mutations
-- Statistical consistency metrics
-
-Analysis notebooks in `test_notebooks/` provide examples of result visualization and statistical analysis.
-
-## Contributing
-
-This is an active research project. Contributions are welcome in areas such as:
-
-- Additional mutation types
-- New LLM model integrations
-- Enhanced analysis tools
-- Performance optimizations
-
-## Research Context
-
-This work contributes to understanding LLM reliability in software engineering applications, with implications for:
-
-- Automated code generation tools
-- LLM-assisted programming environments  
-- Robustness testing for AI-generated code
-- Benchmark development for code LLMs
+You will need to download the MuCoCo experiment results from XXXX and store it in `MuCoCo_results` folder from the project root directory. The name of the folder storing the results should be named `MuCoCo_experiment_results`. These results are necessary for running the results aggregation scripts. 

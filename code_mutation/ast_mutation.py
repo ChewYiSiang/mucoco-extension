@@ -270,7 +270,7 @@ class ASTNodeHelper:
                     step = 0 if node.slice.step == None else node.slice.step
 
                     if any(not isinstance(slice, ast.Constant) for slice in [upper, lower, step]):
-                        return None
+                        return type(None).__name__
                     
                     return eval(value)[upper:lower:step]if not isinstance(var, str) else value[upper:lower:step]
 

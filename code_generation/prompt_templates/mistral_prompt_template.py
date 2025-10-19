@@ -40,7 +40,7 @@ class MistralOpenEndedPromptTemplate(PromptTemplate):
         prompt = textwrap.dedent("""
             <s>[INST] Complete the given code snippet using the description below. 
             Complete the function body and do not add any explanations or extra text. 
-            Return all code snippet in your answer. 
+            Return the complete python program and any necessary import statements.
             Preserve indentation.
 
             ### Example:
@@ -67,7 +67,10 @@ class MistralOpenEndedPromptTemplate(PromptTemplate):
 
     def one_shot_prompt(self) -> str:
         prompt = textwrap.dedent("""
-            <s>[INST] Complete the code for the following function given it's description. Only complete the code function and do not add any other details. You may use the given example to write your code. Return your answer as a complete function, including any provided code.
+            <s>[INST] Complete the given code snippet using the description below. 
+            Complete the function body and do not add any explanations or extra text. 
+            Return the complete python program and any necessary import statements.
+            Preserve indentation.
 
             {task}
                                  
@@ -83,7 +86,10 @@ class MistralOpenEndedPromptTemplate(PromptTemplate):
     
     def few_shot_prompt(self) -> str:
         prompt = textwrap.dedent("""
-            <s>[INST] Complete the code for the following function given it's description. You may use the given examples to write your code. Return your answer as a complete function.
+            <s>[INST] Complete the given code snippet using the description below. 
+            Complete the function body and do not add any explanations or extra text. 
+            Return the complete python program and any necessary import statements.
+            Preserve indentation.
 
             {task}
 
