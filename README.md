@@ -175,4 +175,6 @@ Wait for the packages to finish installing. You may need to do some troubleshoot
 
 
 ### Identify Code Inconsistencies
-Scripts for identifying code inconsistency scores are found under `MuCoCo_results/notebooks` from the project root directoy. The notebooks are named according to the RQ the results are reported in. Navigate to that sub directory for more information.
+Scripts for identifying code inconsistency scores are found under `MuCoCo_results/notebooks` from the project root directoy. The notebooks are named according to the RQ the results are reported in. Navigate to that project sub directory for more information.
+
+You will need to download the MuCoCo experiment results from XXXX and store it in `MuCoCo_results` folder from the project root directory. The name of the folder storing the results should be named `MuCoCo_experiment_results`. These results are necessary for running the results aggregation scripts. 
