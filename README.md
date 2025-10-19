@@ -36,7 +36,7 @@ while preserving the semantics of the original program. The framework supports m
 
 ### Supported LLM Models
 
-MuCoCo framework supports the following LLM:
+MuCoCo framework supports the following LLMs:
 - Codestral-2508
 - GPT-4o
 - GPT-5
@@ -45,7 +45,7 @@ MuCoCo framework supports the following LLM:
 - Gemma-3-12b-it
 - Llama-3.1-8b
 
-It should be noted that Codestral, GPT-4o, GPT5 and DeepSeek experiments were conducted through API keys, which you will need to obtain from their respective websites. Qwen, Gemma and Llama models have their model weights downloaded from HuggingFace from their respective repositories. Experiments using model weights downloaded from HuggingFace are conducted using Google Colab, while models using API keys are conducted through a local setup.
+It should be noted that Codestral, GPT-4o, GPT5 and DeepSeek experiments were conducted through API keys, which you will need to obtain from their respective websites. Qwen, Gemma and Llama models have their model weights downloaded from HuggingFace from their respective repositories. Experiments using model weights downloaded from HuggingFace are conducted using [Google Colab](https://colab.google/), while models using API keys are conducted through a local setup.
 
 ## Getting Started
 
@@ -53,7 +53,7 @@ It should be noted that Codestral, GPT-4o, GPT5 and DeepSeek experiments were co
 Your first step is to download this repository and save it locally on your computer. It is recommended that you use [VSCode](https://code.visualstudio.com/) for this project.
 
 ### High-level Overview of Project Directory
-This section covers the high level explanation of the overall project directory. 
+This section covers the high level overview of the overall project directory. 
 Folders marked with a '❌' do not need to be explored for running experiments and generally contain scripts necessary for running the project.
 
 ```markdown
@@ -107,7 +107,7 @@ This section will be covering the steps you need to take to set up the models fo
 It should be noted that models that require API keys generally require credits to run and will require you to top up.
 
 #### Codestral
-You will need a Mistral AI API key to use Codestral. 
+You will need a Mistral API key to use Codestral. 
 
   1. To obtain your own Mistral API Key, simply head to the official [Mistral AI](https://mistral.ai/) website and  sign up or sign in to an existing account. Complete any sign up procedures.
   2. Next, navigate to the homepage of your account. On the left hand side of the homepage, you should see a tab called "API Keys". Head to that page and create a new key. You may leave the expiration date empty.
@@ -165,7 +165,7 @@ Wait for the packages to finish installing. You may need to do some troubleshoot
 
 ### Building the database
   1. Ensure that you have the datasets downloaded in `.csv` format. From the project's main directory, the csv datasets should be under `datasets/open_ended_format`. You should have datasets for 
-  [BigCodeBench](https://arxiv.org/abs/2406.15877), [CodeMMLU](https://arxiv.org/abs/2410.01999), [CruxEval](https://arxiv.org/abs/2401.03065), and a modified HumanEval dataset. 
+  [BigCodeBench](https://arxiv.org/abs/2406.15877), [CodeMMLU](https://arxiv.org/abs/2410.01999), [CruxEval](https://arxiv.org/abs/2401.03065), and a modified [HumanEval](https://arxiv.org/abs/2107.03374) dataset. 
   2. Navigate to `code_generation/test_notebooks` to start setting up for code generation experiments.
   3. Next, you may head to `mcq_inconsistency` or `prediction_inconsistency` for the respective MuCoCo experiments.
 
@@ -173,31 +173,6 @@ Wait for the packages to finish installing. You may need to do some troubleshoot
   1. You will need to run `code_generation/humaneval_database_builder.ipynb` before you can run `input_output_prediction/humaneval_database_builder.ipynb` else it will fail. The input_output_prediction for humaneval database builder relies on the code generation counterpart.
   2. When building the database for BigCodeBench dataset, there may some "residual" files from the dataset that will appear in the directory. You can delete these files without any problems. 
 
-### Running the experiments
-Once you have downloaded the dataset and it's been successfully stored in your MongoDB cluster, you can start running experiments.
 
 ### Identify Code Inconsistencies
-To start out with obtaining code inconsistencies in LLMs, you conduct a simple experiment.
-  1. Run a code generation experiment with **no mutations** on the code generation experiment Python notebook. Your `run_code_generation_test` input should look something like the snippet below.
-  ```
-    pass_count = llmtester.run_code_generation_test(
-      prompt_helper = OpenEndedPromptTemplate().return_appropriate_prompt(prompt_type),
-      num_tests = num_tests,
-      prompt_type = prompt_type,
-      output_file_path = output_file_path,
-      task_set = task_set,
-      )
-  ```
-  3. Run a second experiment with **random mutation**. Your `run_code_generation_test` input should look something like the snippet below.
-  ```
-    pass_count = llmtester.run_code_generation_test(
-      prompt_helper = OpenEndedPromptTemplate().return_appropriate_prompt(prompt_type),
-      num_tests=num_tests,
-      prompt_type= prompt_type,
-      output_file_path=output_file_path,
-      task_set = task_set,
-      mutations = [RANDOM_MUTATION]    # RANDOM_MUTATION should be declared in one of the earlier cells in the same notebook
-      )
-  ```
-  
-  4. Compare the output logs and determine where the inconsistencies are. 
+Scripts for identifying code inconsistency scores are found under `MuCoCo_results/notebooks` from the project root directoy. The notebooks are named according to the RQ the results are reported in. Navigate to that sub directory for more information.
