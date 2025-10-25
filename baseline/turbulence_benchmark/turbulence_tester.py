@@ -1,13 +1,13 @@
 from baseline.turbulence_benchmark.utility.helper_functions import TurbulenceBenchmarkHelper
 from code_generation.code_generation_tester import CodeGenerationTester, LLMExecutionRuntimeError
-from typing import List, Callable, Any
+from typing import List, Any
 from utility.constants import CodeGeneration, ReasoningModels, NonReasoningModels, LexicalMutations, SamplingMethods, Turbulence, InputPrediction, OutputPrediction, Seed
 from code_mutation.mutation_relations import check_for_mutation_conflicts
 from tqdm import tqdm
 import ast
 import random
-from code_mutation.mutation_functions import CodeMutator, IdenticalMutationError
-from prediction_inconsistency.prompt_templates.prompt_template import PredictionInconsistencyPromptTemplate
+from code_mutation.mutation_functions import CodeMutator
+from prediction_inconsistency.prompt_templates.prompt_template import Reasoning_Prediction_Inconsistency_Prompt_Template
  
 INPUT_PREDICTION = InputPrediction.NAME
 OUTPUT_PREDICTION = OutputPrediction.NAME
@@ -258,9 +258,9 @@ class TurbulenceTester(CodeGenerationTester):
         Since this is a baseline testing class and it is not the primary focus of the project, this method does not support GPU functionalities like other tester methods and can only run experiments through a local setup with API calls.
         """
         if task_type == INPUT_PREDICTION:
-            prediction_prompt_template = PredictionInconsistencyPromptTemplate.InputPrediction().zero_shot_prompt()
+            prediction_prompt_template = Reasoning_Prediction_Inconsistency_Prompt_Template.InputPrediction().zero_shot_prompt()
         elif task_type == OUTPUT_PREDICTION:
-            prediction_prompt_template = PredictionInconsistencyPromptTemplate.OutputPrediction().zero_shot_prompt()
+            prediction_prompt_template = Reasoning_Prediction_Inconsistency_Prompt_Template.OutputPrediction().zero_shot_prompt()
         else:
             raise ValueError(f"Invalid task_type was used. The only valid task types are{INPUT_PREDICTION, OUTPUT_PREDICTION}")
 
@@ -333,12 +333,14 @@ class TurbulenceTester(CodeGenerationTester):
                 log_data_entry = {
                     "task_id": f"{task_id}_{idx+1}",
                     "prompt" : None,
+                    "reasoning": None,
                     "model_output": None,
                     "check_function": None,
                     "canonical_solution": None,
                     "func_input": None,
                     "func_output": None,
                     "failure_type": None,
+                    
                 }
 
                 params = task['params']
@@ -434,10 +436,13 @@ class TurbulenceTester(CodeGenerationTester):
                     log_data_entry["failure_type"] = f"{type(e)} > {e}"
                     TurbulenceTester.log_into_csv(output_file_path = output_file_path, input_data = log_data_entry)
                     continue
-
                 try: 
                     # Processing of the llm answer. Some llm answers are in Python code blocks, which needs to be processed as it will fail exec()
-                    ans = TurbulenceTester.process_llm_predicted_output(ans)
+                    try:
+                        ans, reasoning = CodeMutator.extract_json(raw_text = ans)
+                    except Exception:
+                        ans = TurbulenceTester.process_llm_predicted_output(ans)
+                        reasoning = None
                 
                 except Exception as e:                  # Else, if the answer is not in a valid code block and cannot be run directly, it is a faulty answer and is stored accordingly.
                     print(f"Could not process LLM answer: {e}")
@@ -447,6 +452,7 @@ class TurbulenceTester(CodeGenerationTester):
                     continue
 
                 log_data_entry['model_output'] = ans       # storing the answer in input_data dict
+                log_data_entry['reasoning'] = reasoning
 
                 ## LLM Answer Test Execution    
                 try:

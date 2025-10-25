@@ -5,6 +5,7 @@ import inspect
 import random
 import string
 import re
+import json
 import numpy as np
 from code_mutation.ast_mutation import ASTNodeHelper
 from prediction_inconsistency.utility.humaneval_helper import PredictionInconsistencyHumanEvalHelper
@@ -176,6 +177,25 @@ class CodeMutator:
         except Exception as e:
             print(f"DEBUG: Semantic equivalence check failed: {e}")
             return False
+
+    @staticmethod
+    def extract_json(raw_text: str):
+        """
+        Extract and parse JSON from model output that may contain markdown fences.
+        Returns a Python dict, or None if parsing fails.
+        """
+        # Remove code fences if present
+        cleaned = re.sub(r"```(?:json)?\s*", "", raw_text)  # remove ```json or ```
+        cleaned = cleaned.rstrip("`").strip()
+        cleaned_output = json.loads(cleaned)
+
+        try:
+            return cleaned_output.get('answer', None), cleaned_output.get('reasoning', None)
+        except json.JSONDecodeError:
+            print("⚠️ JSON parsing failed.")
+            return None
+        
+
     
     @staticmethod
     def verify_with_canon_ans(

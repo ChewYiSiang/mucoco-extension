@@ -194,7 +194,78 @@ class ReasoningMCQInconsistencyPromptTemplate(PromptTemplate):
         """)
                 
         return prompt
-        
+
+class Reasoning_MCQ_Inconsistency(PromptTemplate):
+    def zero_shot_prompt(self):
+        prompt = textwrap.dedent("""
+            # Return the correct option in this Multiple Choice Question that completes the program according to the task description.
+            # You must ahere to the following instructions:
+            # - Use the task description to make your choice.
+            # - Give your reasoning steps for arriving at the answer.
+            
+            ### Task Description
+            {qn_desc}
+                                    
+            ### Code Snippet
+            {task}
+            
+            ### Choices
+            {choices}
+                                
+            ### Your Answer:
+        """)
+
+        return prompt
+
+
+    def one_shot_prompt(self):
+        prompt = textwrap.dedent("""
+            # Return the correct option in this Multiple Choice Question that completes the program according to the task description.
+            # You must ahere to the following instructions:
+            # - Use the task description to make your choice.
+            # - Give your reasoning steps for arriving at the answer.
+            
+            ### Task Description
+            {qn_desc}
+                                    
+            ### Code Snippet
+            {task}
+                                 
+            ### Example
+            {example}
+            
+            ### Choices
+            {choices}
+                                
+            ### Your Answer:
+        """)
+
+        return prompt
+    
+    def few_shot_prompt(self):
+        prompt = textwrap.dedent("""
+            # Return the correct option in this Multiple Choice Question that completes the program according to the task description.
+            # You must ahere to the following instructions:
+            # - Use the task description to make your choice.
+            # - Give your reasoning steps for arriving at the answer.
+            # - Examine each MCQ option clearly and provide your reasoning for each option.
+            
+            ### Task Description
+            {qn_desc}
+                                    
+            ### Code Snippet
+            {task}
+                                 
+            ### Examples
+            {example}
+            
+            ### Choices
+            {choices}
+                                
+            ### Your Answer:
+        """)
+                
+        return prompt
 
 if __name__ == "__main__":
     pass
