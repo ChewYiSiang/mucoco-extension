@@ -120,6 +120,7 @@ class LLMMCQInconsistencyTester(CodeGenerationTester):
                 log_entry = {
                     "task_id": task_id,
                     "prompt": None,
+                    "reasoning": None,
                     "model_output": None,
                     "correct_answer": answer,
                     "failure_type": None
@@ -231,8 +232,14 @@ class LLMMCQInconsistencyTester(CodeGenerationTester):
                         LLMMCQInconsistencyTester.log_into_csv(output_file_path = output_file_path, input_data = log_entry)
                         continue
 
-                    ans = LLMMCQInconsistencyTester.process_llm_ans(ans)
+                    try:
+                        ans, reasoning = CodeMutator.extract_json(raw_text = ans)
+                    except Exception:
+                        ans = LLMMCQInconsistencyTester.process_llm_ans(ans)
+                        reasoning = None
+                    
                     log_entry['model_output'] = (ans, type(ans))                                            # storing model answer into the database entry
+                    log_entry['reasoning'] = reasoning
 
                 ## Running the formatted prompt into the LLM
                 try:

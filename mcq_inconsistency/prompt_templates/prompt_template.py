@@ -196,76 +196,106 @@ class ReasoningMCQInconsistencyPromptTemplate(PromptTemplate):
         return prompt
 
 class Reasoning_MCQ_Inconsistency(PromptTemplate):
+
     def zero_shot_prompt(self):
         prompt = textwrap.dedent("""
-            # Return the correct option in this Multiple Choice Question that completes the program according to the task description.
-            # You must ahere to the following instructions:
-            # - Use the task description to make your choice.
-            # - Give your reasoning steps for arriving at the answer.
-            
+            # You are given a multiple-choice code reasoning question.
+            # Determine the correct answer using the task description, code snippet, and the choices.
+
+            # STRICT OUTPUT FORMAT (valid JSON only):
+            {{
+                "answer": <letter only: A/B/C/D>,
+                "reasoning": "<step-by-step explanation>"
+            }}
+
+            # Requirements:
+            - Return ONLY the JSON object
+            - The "answer" field must contain exactly one option letter
+            - The "reasoning" field must justify why the option is correct
+            - Do not include backticks or commentary outside JSON
+
             ### Task Description
             {qn_desc}
-                                    
+
             ### Code Snippet
             {task}
-            
+
             ### Choices
             {choices}
-                                
-            ### Your Answer:
-        """)
 
+            # Your Answer:
+        """)
         return prompt
 
 
     def one_shot_prompt(self):
         prompt = textwrap.dedent("""
-            # Return the correct option in this Multiple Choice Question that completes the program according to the task description.
-            # You must ahere to the following instructions:
-            # - Use the task description to make your choice.
-            # - Give your reasoning steps for arriving at the answer.
-            
+            # You are given a multiple-choice code reasoning question.
+            # Determine the correct answer using the task description, code snippet, example and choices.
+
+            # STRICT OUTPUT FORMAT (valid JSON only):
+            {{
+                "answer": <letter only: A/B/C/D>,
+                "reasoning": "<step-by-step explanation>"
+            }}
+
+            # Requirements:
+            - Return ONLY the JSON object
+            - The "answer" field must contain exactly one option letter
+            - The "reasoning" field must justify why the option is correct
+            - Do not include backticks or commentary outside JSON
+
             ### Task Description
             {qn_desc}
-                                    
+
             ### Code Snippet
             {task}
-                                 
+
             ### Example
             {example}
-            
+
             ### Choices
             {choices}
-                                
-            ### Your Answer:
-        """)
 
+            # Your Answer:
+        """)
         return prompt
-    
+
+
     def few_shot_prompt(self):
         prompt = textwrap.dedent("""
-            # Return the correct option in this Multiple Choice Question that completes the program according to the task description.
-            # You must ahere to the following instructions:
-            # - Use the task description to make your choice.
-            # - Give your reasoning steps for arriving at the answer.
-            # - Examine each MCQ option clearly and provide your reasoning for each option.
-            
+            # You are given a multiple-choice code reasoning question.
+            # Determine the correct answer using the task description, code snippet, examples, and the choices.
+            # Use the examples to follow the expected reasoning structure.
+
+            # STRICT OUTPUT FORMAT (valid JSON only):
+            {{
+                "answer": <letter only: A/B/C/D>,
+                "reasoning": "<step-by-step explanation>"
+            }}
+
+            # Requirements:
+            - Return ONLY the JSON object
+            - Provide reasoning that evaluates each option (why correct/incorrect)
+            - Keep answer valid JSON with no trailing comments
+            - No Markdown, no backticks
+
             ### Task Description
             {qn_desc}
-                                    
+
             ### Code Snippet
             {task}
-                                 
+
             ### Examples
             {example}
-            
+
             ### Choices
             {choices}
-                                
-            ### Your Answer:
+
+            # Your Answer:
         """)
-                
         return prompt
+
 
 if __name__ == "__main__":
     pass
