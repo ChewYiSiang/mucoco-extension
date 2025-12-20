@@ -1,16 +1,102 @@
 import pandas as pd
-from typing import Tuple, Any, List
-import ast
-
+from typing import Tuple, Dict, Any
+from code_generation.code_generation_tester import LLMExecutionRuntimeError, LLMExecutionError
+from utility.constants import CodeGeneration
+from prediction_inconsistency.utility.database_helper import extract_assert_cases
 class DataLogHelper:
-    @staticmethod
-    def check_valid_failure(failure: str):
-        if isinstance(failure, float) or (isinstance(failure, str) and "AssertionError" in failure and "Mutation" not in failure):
-            return True
-        return False
+    def compare_model_outputs(model_output1: Any, model_output2: Any, task: str, check_function: str) -> bool:
+        if task == CodeGeneration.NAME:
+            _, test_cases, _ = extract_assert_cases(check_function)
+            print(test_cases)
+        else:
+            return model_output1 == model_output2
+
+    def inconsistency_scoring(
+            task: str, 
+            log1_data: Dict[str, Any],
+            log2_data: Dict[str, Any],
+            ) -> Dict[str, str]:
+        """
+        This function applies the heuristics for inconsistency scoring on 2 result inputs.
+        The inconsistency from res1, inconsistency from res2 and total inconsistencies
+
+        Dictionary keys and their possible values:
+        1. inconsistency_res1: 1 when res1 is wrong while res2 is correct, else 0
+        2. inconsistency_res2: 1 when res2 is wrong while res1 is correct, else 0
+        3. total_inconsistencies: 1 when res1 or res2 have any inconsistency (such as both assertion error), else 0
+        4. inconsistency_comparison: 1 when res1 and res2 are valid outputs for inconsistency comparisons, else 0 
+
+        Args:
+            - log1_data: dictionary containing llm output data 
+            - log2_data: dictionary containing llm output data 
+            - task: task type (e.g.: code_generation etc)
+        Returns:
+            - dictionary containing inconsistencies scores
+        """
+        def is_valid_str_failure(res: str | float) -> bool:
+            if isinstance(res, str):
+                has_assertion_error = AssertionError.__name__ in res and "Mutation" not in res
+                has_llm_runtime_error = (LLMExecutionRuntimeError.__name__ in res) or (LLMExecutionError.__name__ in res)
+                failed_to_parse_llm_ans = "could_not_parse_LLM_answer" in res
+
+                if has_assertion_error or has_llm_runtime_error or failed_to_parse_llm_ans:
+                    return True
+                return False
+            return False
+        
+        inconsistencies = {
+            "inconsistency_res1": 0,
+            "inconsistency_res2": 0,
+            "total_inconsistencies": 0,
+            "inconsistency_comparison": 0
+        }
+
+        # Extracting key variables from log data
+        failure_type1 = log1_data['failure_type']
+        failure_type2 = log2_data['failure_type']
+        
+
+        # 1. check if both llm outputs are correct > no inconsistencies
+        if isinstance(failure_type1, float) and isinstance(failure_type2, float):
+            inconsistencies['inconsistency_comparison'] += 1
+        
+        # 2. check if either res1 is wrong while res2 is correct
+        elif is_valid_str_failure(failure_type1) and isinstance(failure_type2, float):
+            inconsistencies['inconsistency_res1'] += 1
+            inconsistencies['total_inconsistencies'] += 1
+            inconsistencies['inconsistency_comparison'] += 1
+
+        
+        # 3. check if either res2 is wrong while res1 is correct
+        elif is_valid_str_failure(failure_type2) and isinstance(failure_type1, float):
+            inconsistencies['inconsistency_res2'] += 1
+            inconsistencies['total_inconsistencies'] += 1
+            inconsistencies['inconsistency_comparison'] += 1
+
+
+        # 4. check if res1 and res2 are both wrong
+        elif is_valid_str_failure(failure_type1) and is_valid_str_failure(failure_type2):
+            inconsistent_errors = DataLogHelper.compare_model_outputs(
+                model_output1=model_output1,
+                model_output2= model_output2,
+                task = task,
+                check_function= check_function
+            )
+            if inconsistent_errors:
+                inconsistencies['total_inconsistencies'] += 1
+
+            inconsistencies['inconsistency_comparison'] += 1
+
+        # 5. else, either of them have some other errors that do not contribute to inconsistency
+        else:
+            pass
+
+        return inconsistencies     
+        
+
 
     @staticmethod
-    def compare_code_generation_dataframe_results(log1: pd.DataFrame, log2: pd.DataFrame) -> Tuple[int, int]:
+    def compare_code_generation_dataframe_results(log1: pd.DataFrame, log2: pd.DataFrame, task: str) -> Tuple[int, int]:
         """
         This function is used to compare between two pd dataframes containing the logs of two comparable code generation runs and returns any inconsistencies found between the two logs.
         
@@ -46,16 +132,17 @@ class DataLogHelper:
                 - Should there be any changes in the future where only selected runs are logged, this function may need to be modifid accordingly. 
     
         """
+        def check_llm_output_validity(model_output: str | float) -> bool:
+            if isinstance(model_output, float):
+                return True
+
+            has_assertion = AssertionError.__name__ in model_output and "Mutation" not in model_output
+            valid_parse_error = "could_not_parse_LLM_answer" not in model_output
+
+            return has_assertion or valid_parse_error
+
         # Copying the input logs
         log1_orig, log2_orig = log1.copy(), log2.copy()
-
-        # ## Checking that the log1 column names are equal to log2 column names
-        # if not log1.columns.equals(log2.columns):
-        #     raise ValueError("CSV column headers do not match.")
-        
-        ## Checking that both logs have the same number of entries
-        # if log1.shape[0] != log2.shape[0]:
-        #     raise ValueError("Dataframe shapes are not equal. Double check the entries again.")
 
         ## If either logs are empty, (0,0) is returned
         if log1.shape[0] == 0 or log2.shape[0] == 0:
@@ -63,13 +150,10 @@ class DataLogHelper:
         
         log1_inconsistencies = 0        # inconsistencies from log1
         log2_inconsistencies = 0        # inconsistencies from log2
-        tot = 0                         # union between tasks solved correctly in both logs
+        total_comparisons = 0           
         log1_total_answered = 0
         log2_total_answered = 0
-        both_failed = 0                 # tasks where both logs failed
-        identical_mutation_errors = 0   # tasks with IdenticalMutationError
-        both_succeeded = 0              # tasks where both logs succeeded
-        count = 0
+        total_inconsistencies = 0
 
         total_tasks = log1.shape[0]
         # print(f"Starting comparison of {total_tasks} tasks...")
@@ -80,63 +164,41 @@ class DataLogHelper:
             log1 = log1.drop(index = idx)
 
             task_id = log1_data['task_id']
+            print(task_id)
             log_2_matched_data = log2[log2["task_id"] == task_id]
 
             if log_2_matched_data.shape[0] != 1:
-                # raise  ValueError(f"Expected exactly one matched task_id in log_2, but found {log_2_matched_data.shape[0]} matched task_id.")
+                # raise ValueError(f"Expected exactly one matched task_id in log_2, but found {log_2_matched_data.shape[0]} matched task_id.")
                 continue
 
             log2_data = log_2_matched_data.iloc[0]
             log2_data_index = log_2_matched_data.index[0]
             log2 = log2.drop(index = log2_data_index)
 
-            log1_result = log1_data['failure_type']
-            log2_result = log2_data['failure_type']
-
-            if isinstance(log1_result, float) or isinstance(log1_result, str) and AssertionError.__name__ in log1_result and "Mutation" not in log1_result:
+            # checking if the llm answered appropriately
+            if check_llm_output_validity(log1_data['failure_type']):
                 log1_total_answered += 1
 
-            if isinstance(log2_result, float) or isinstance(log2_result, str) and AssertionError.__name__ in log2_result and "Mutation" not in log2_result:
+            if check_llm_output_validity(log2_data['failure_type']):
                 log2_total_answered += 1
+            
+            # **Inconsistency Scoring Heuristics**
+            inconsistency_scores = DataLogHelper.inconsistency_scoring(
+                log1_data = log1_data,
+                log2_data = log2_data,
+                task = task
+            )
 
-            # if DataLogHelper.check_valid_failure(log1_result) and DataLogHelper.check_valid_failure(log2_result) and not ("AssertionError" in str(log1_result) and "AssertionError" in str(log2_result)):
-            if (isinstance(log1_result, float) and (isinstance(log2_result, str) and AssertionError.__name__ in log2_result) and "Mutation" not in log2_result) or (
-                isinstance(log2_result, float) and (isinstance(log1_result, str) and AssertionError.__name__ in log1_result)) or (
-                isinstance(log1_result, float) and isinstance(log2_result, float)):
-                tot += 1
-                # Check if both succeeded (both are NaN/float)
-                if isinstance(log1_result, float) and isinstance(log2_result, float):
-                    
-                    both_succeeded += 1
-                elif (isinstance(log1_result, str) and "AssertionError" in log1_result) and (isinstance(log2_result, str) and "AssertionError" in log2_result):
-                    pass
-                # One succeeded, one failed - this is an inconsistency
-                elif not isinstance(log2_result, float):
-                    # print(task_id, log1_result, log2_result)
-                    log2_inconsistencies += 1
-                elif not isinstance(log1_result, float):
-                    log1_inconsistencies +=1
-                    # print(task_id, log1_result, log2_result)
-        # print(log1_inconsistencies + log2_inconsistencies)
-        
-
-
-        ## Checking if log1 have any remaining entries. This is not used now, but could come in handy in the future.
-        # if log1.shape[0] > 0:
-        #     for idx in range(log1.shape[0]):
-        #         task = log1.loc[idx]
-        #         unmatched_ids.add(task["task_id"])
-        
-        ## Checking if log2 have any remaining entries. This is not used now, but could come in handy in the future.
-        # if log2.shape[0] > 0:
-        #     for idx in range(log2.shape[0]):
-        #         task = log2.loc[idx]
-        #         unmatched_ids.add(task["task_id"])
+            log1_inconsistencies += inconsistency_scores['inconsistency_res1']
+            log2_inconsistencies += inconsistency_scores['inconsistency_res2']
+            total_inconsistencies += inconsistency_scores['total_inconsistencies']
+            total_comparisons += inconsistency_scores['inconsistency_comparison']
 
         mask1 = (
-            log1_orig['failure_type'].astype(str).str.contains("AssertionError", na=False)
+            log1_orig['failure_type'].astype(str).str.contains(AssertionError.__name__, na=False)
             & ~log1_orig['failure_type'].astype(str).str.contains("Mutation", na=False)
         )
+
         mask2 = (
             log2_orig['failure_type'].astype(str).str.contains("AssertionError", na=False)
             & ~log2_orig['failure_type'].astype(str).str.contains("Mutation", na=False)
@@ -160,10 +222,13 @@ class DataLogHelper:
         return {
             'log1_inconsistencies': log1_inconsistencies,
             'log2_inconsistencies': log2_inconsistencies,
-            'total_inconsistency_questions': tot,
+            'total_inconsistencies': total_inconsistencies,
+            'total_inconsistency_questions': total_comparisons,
             'log1_success': log1_total_answered - mask1.sum(),
             'log2_success': log2_total_answered - mask2.sum(),
             'log1_total_answered': log1_total_answered,
             'log2_total_answered': log2_total_answered,
             'total_tasks': total_tasks
         }
+
+
