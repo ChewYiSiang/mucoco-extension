@@ -1,17 +1,246 @@
+import re
+import builtins
 import pandas as pd
-from typing import Tuple, Dict, Any
+from typing import Tuple, Dict, Any, List
 from code_generation.code_generation_tester import LLMExecutionRuntimeError, LLMExecutionError
 from utility.constants import CodeGeneration
 from prediction_inconsistency.utility.database_helper import extract_assert_cases
-class DataLogHelper:
-    def compare_model_outputs(model_output1: Any, model_output2: Any, task: str, check_function: str) -> bool:
-        if task == CodeGeneration.NAME:
-            _, test_cases, _ = extract_assert_cases(check_function)
-            print(test_cases)
-        else:
-            return model_output1 == model_output2
+import multiprocessing as mp
+from utility.custom_decorators import multiprocessing_method
+import signal
 
-    def inconsistency_scoring(
+class TimeoutError(Exception): pass
+
+# @multiprocessing_method
+# def run_tests(
+#         func_name: str, 
+#         test_inputs: List[Any],
+#         test_outputs:  List[Any],
+#         llm_solution: str, 
+#         results_queue: mp.Queue, 
+#     ) -> None:
+#     env = {}
+#     results = {}
+
+#     for idx in range(len(test_inputs)):
+#         results[idx] = False
+#     try:
+#         exec(llm_solution, env)
+#     except Exception as e:
+#         results_queue.put(results)
+    
+#     if isinstance(llm_solution, float):
+#         results_queue.put(results)
+
+#     for idx, (test_data, test_output) in enumerate(zip(test_inputs, test_outputs)):            
+#         test_input, test_metadata = test_data
+
+#         try:
+#             if isinstance(test_metadata, list):
+#                 result = env[func_name](*test_input)
+#             else:
+#                 result = env[func_name](test_input)
+            
+#             results[idx] = test_output == result
+#         except Exception:
+#             results[idx] = False
+
+#     results_queue.put(results)
+    
+class HumanEvalHelper:
+    def extract_function_name(prompt: str) -> str:
+        """
+        Extract the user-defined function being tested in doctest examples,
+        excluding Python built-ins (e.g., round, len).
+        """
+        builtin_names = set(dir(builtins))
+
+        # Only look at doctest lines
+        doctest_lines = [
+            line for line in prompt.splitlines()
+            if line.strip().startswith(">>>")
+        ]
+
+        for line in doctest_lines:
+            # Find ALL function calls in the line
+            calls = re.findall(r"([a-zA-Z_]\w*)\s*\(", line)
+            for name in calls:
+                if name not in builtin_names:
+                    return name
+
+        raise ValueError("No non-builtin function call found in doctest examples")
+
+    def humaneval32_inconsistency_score(prompt:str, candidate: str) -> int:
+        def poly(xs: list, x: float):
+            """
+            Evaluates polynomial with coefficients xs at point x.
+            return xs[0] + xs[1] * x + xs[1] * x^2 + .... xs[n] * x^n
+            """
+            import math
+            return sum([coeff * math.pow(x, i) for i, coeff in enumerate(xs)])
+
+        def check(candidate):
+            import math
+            import random
+            rng = random.Random(42)
+            import copy
+            pass_count = 0
+            for _ in range(100):
+                ncoeff = 2 * rng.randint(1, 4)
+                coeffs = []
+                for _ in range(ncoeff):
+                    coeff = rng.randint(-10, 10)
+                    if coeff == 0:
+                        coeff = 1
+                    coeffs.append(coeff)
+                solution = candidate(copy.deepcopy(coeffs))
+                try:
+                    assert math.fabs(poly(coeffs, solution)) < 1e-4
+                    pass_count += 1
+                except AssertionError:
+                    return pass_count
+            return pass_count
+        env = {}
+        exec(candidate, env)
+        candidate_func_name = HumanEvalHelper.extract_function_name(prompt)
+
+        return check(candidate=env[candidate_func_name])
+    
+    # def humaneval_inconsistency_score(prompt: str, candidate: str | float, test_inputs: List[Any], test_outputs: List[Any]) -> Dict[int, int]:
+    #     candidate_func_name = HumanEvalHelper.extract_function_name(prompt)
+
+    #     TIMEOUT = 10
+    #     results_queue = mp.Queue()
+
+    #     run_tests_process = mp.Process(
+    #         target= run_tests,
+    #         kwargs={
+    #             "func_name": candidate_func_name,
+    #             "test_inputs": test_inputs,
+    #             "test_outputs": test_outputs,
+    #             "llm_solution": candidate,
+    #             "results_queue": results_queue
+    #         }
+    #     )
+
+    #     run_tests_process.start()
+    #     run_tests_process.join(timeout=TIMEOUT)
+
+    #     if run_tests_process.is_alive():
+    #         run_tests_process.kill()
+    #         run_tests_process.join()
+    #         raise RuntimeError("Ran for too long.")
+    
+    #     results = results_queue.get()
+
+    #     return results
+    
+    def humaneval_inconsistency_score(prompt: str, candidate: str | float, test_inputs: List[Any], test_outputs: List[Any]) -> Dict[int, int]:
+        env = {}
+        results = {}
+        for idx in range(len(test_inputs)):
+            results[idx] = False
+
+        if isinstance(candidate, float):
+            return results
+
+        candidate_func_name = HumanEvalHelper.extract_function_name(prompt)
+        try:
+            exec(candidate, env)
+        except Exception:
+            return results
+        
+        fn = env[candidate_func_name]
+
+        for idx, (test_data, test_output) in enumerate(zip(test_inputs, test_outputs)):            
+            test_input, test_metadata = test_data
+
+            try:
+                with time_limit(2):
+                    if isinstance(test_metadata, list):
+                        result = fn(*test_input)
+                    else:
+                        result = fn(test_input)
+                
+                results[idx] = test_output == result
+            except Exception:
+                results[idx] = False
+        return results
+
+class DataLogHelper:
+    def compare_model_outputs(
+        log1_data: Dict[str, Any],
+        log2_data: Dict[str, Any],
+        task: str, 
+    ) -> Dict[str, int | bool]:
+        
+        print(log2_data['task_id'])
+
+        # Declaring variables
+        check_function = log1_data['check_function']
+        model_output1 = log1_data['model_output']
+        model_output2 = log2_data['model_output']
+
+        task_id = log1_data['task_id']
+
+        prompt_1 = log1_data['prompt']
+        prompt_2 = log2_data['prompt']
+
+        inconsistency_dict = {}
+        
+        # calculating inconsistency metrics
+        if task == CodeGeneration.NAME:
+            if task_id == "HumanEvalo32":
+                inconsistency_score1 = HumanEvalHelper.humaneval32_inconsistency_score(prompt_1, model_output1)
+                inconsistency_score2 = HumanEvalHelper.humaneval32_inconsistency_score(prompt_2, model_output2)
+                
+                inconsistency_dict['inconsistency_exists'] = inconsistency_score1 == inconsistency_score2
+                #TODO: fix here
+
+                inconsistency_dict['inconsistency_score'] = {'score1': inconsistency_score1, 'score2': inconsistency_score2}
+            else:
+                _, test_cases, _ = extract_assert_cases(check_function)
+                input_data = []
+                output_data = []
+                for inputs, output in test_cases:
+                    output_data.append(output)
+                    input_data.append(inputs)
+
+                print('ok1')
+
+                inconsistency_results1 = HumanEvalHelper.humaneval_inconsistency_score(
+                    prompt = prompt_1, 
+                    candidate = model_output1, 
+                    test_inputs = input_data, 
+                    test_outputs = output_data
+                )
+                
+                print('ok')
+                inconsistency_results2 = HumanEvalHelper.humaneval_inconsistency_score(
+                    prompt = prompt_2, 
+                    candidate = model_output2, 
+                    test_inputs = input_data, 
+                    test_outputs = output_data
+                )
+
+                if inconsistency_results1.keys() != inconsistency_results2.keys():
+                    raise ValueError("Something went wrong with the check functions as there is a mismatch in the number of input/output test cases.")
+                
+                inconsistency_score = 0
+                for key in inconsistency_results1.keys():
+                    res1 = inconsistency_results1[key]
+                    res2 = inconsistency_results2[key]
+                    inconsistency_score += 1 if res1 != res2 else 0
+
+                inconsistency_dict['inconsistency_exists'] = inconsistency_results1 != inconsistency_results2
+                inconsistency_dict['inconsistency_score'] = inconsistency_score/ len(inconsistency_results1)
+                    
+        else:
+            inconsistency_dict['inconsistency_exists'] = model_output1 == model_output2
+
+        return inconsistency_dict
+
+    def inconsistency_heuristics(
             task: str, 
             log1_data: Dict[str, Any],
             log2_data: Dict[str, Any],
@@ -54,46 +283,47 @@ class DataLogHelper:
         # Extracting key variables from log data
         failure_type1 = log1_data['failure_type']
         failure_type2 = log2_data['failure_type']
-        
+
+        # determining the outcome of the llm output: either correct or incorrect
+        res1_correct = isinstance(failure_type1, float)
+        res2_correct = isinstance(failure_type2, float)
+        res1_wrong = is_valid_str_failure(failure_type1)
+        res2_wrong = is_valid_str_failure(failure_type2)
+
+        def run_comparison():
+            return DataLogHelper.compare_model_outputs(
+                log1_data=log1_data,
+                log2_data=log2_data,
+                task=task,
+            )
 
         # 1. check if both llm outputs are correct > no inconsistencies
-        if isinstance(failure_type1, float) and isinstance(failure_type2, float):
-            inconsistencies['inconsistency_comparison'] += 1
-        
+        if res1_correct and res2_correct:
+            inconsistency_errors = {}
+
         # 2. check if either res1 is wrong while res2 is correct
-        elif is_valid_str_failure(failure_type1) and isinstance(failure_type2, float):
+        elif res1_wrong and res2_correct:
             inconsistencies['inconsistency_res1'] += 1
-            inconsistencies['total_inconsistencies'] += 1
-            inconsistencies['inconsistency_comparison'] += 1
+            inconsistency_errors = run_comparison()
 
-        
         # 3. check if either res2 is wrong while res1 is correct
-        elif is_valid_str_failure(failure_type2) and isinstance(failure_type1, float):
+        elif res2_wrong and res1_correct:
             inconsistencies['inconsistency_res2'] += 1
-            inconsistencies['total_inconsistencies'] += 1
-            inconsistencies['inconsistency_comparison'] += 1
-
+            inconsistency_errors = run_comparison()
 
         # 4. check if res1 and res2 are both wrong
-        elif is_valid_str_failure(failure_type1) and is_valid_str_failure(failure_type2):
-            inconsistent_errors = DataLogHelper.compare_model_outputs(
-                model_output1=model_output1,
-                model_output2= model_output2,
-                task = task,
-                check_function= check_function
-            )
-            if inconsistent_errors:
-                inconsistencies['total_inconsistencies'] += 1
-
-            inconsistencies['inconsistency_comparison'] += 1
+        elif res1_wrong and res2_wrong:
+            inconsistency_errors = run_comparison()
 
         # 5. else, either of them have some other errors that do not contribute to inconsistency
         else:
-            pass
-
-        return inconsistencies     
+            return inconsistencies
         
+        inconsistencies['inconsistency_comparison'] += 1
+        if inconsistency_errors.get('inconsistency_exists', False):
+            inconsistencies['total_inconsistencies'] += 1
 
+        return inconsistencies
 
     @staticmethod
     def compare_code_generation_dataframe_results(log1: pd.DataFrame, log2: pd.DataFrame, task: str) -> Tuple[int, int]:
@@ -137,7 +367,7 @@ class DataLogHelper:
                 return True
 
             has_assertion = AssertionError.__name__ in model_output and "Mutation" not in model_output
-            valid_parse_error = "could_not_parse_LLM_answer" not in model_output
+            valid_parse_error = "could_not_parse_LLM_answer" in model_output
 
             return has_assertion or valid_parse_error
 
@@ -156,7 +386,6 @@ class DataLogHelper:
         total_inconsistencies = 0
 
         total_tasks = log1.shape[0]
-        # print(f"Starting comparison of {total_tasks} tasks...")
 
         ## Checking for inconsistencies between both logs
         for idx in range(total_tasks):
@@ -164,7 +393,6 @@ class DataLogHelper:
             log1 = log1.drop(index = idx)
 
             task_id = log1_data['task_id']
-            print(task_id)
             log_2_matched_data = log2[log2["task_id"] == task_id]
 
             if log_2_matched_data.shape[0] != 1:
@@ -183,7 +411,7 @@ class DataLogHelper:
                 log2_total_answered += 1
             
             # **Inconsistency Scoring Heuristics**
-            inconsistency_scores = DataLogHelper.inconsistency_scoring(
+            inconsistency_scores = DataLogHelper.inconsistency_heuristics(
                 log1_data = log1_data,
                 log2_data = log2_data,
                 task = task
@@ -194,38 +422,16 @@ class DataLogHelper:
             total_inconsistencies += inconsistency_scores['total_inconsistencies']
             total_comparisons += inconsistency_scores['inconsistency_comparison']
 
-        mask1 = (
-            log1_orig['failure_type'].astype(str).str.contains(AssertionError.__name__, na=False)
-            & ~log1_orig['failure_type'].astype(str).str.contains("Mutation", na=False)
-        )
+        mask1 = log1_orig['failure_type'].map(type).eq(float)
+        mask2 = log2_orig['failure_type'].map(type).eq(float)
 
-        mask2 = (
-            log2_orig['failure_type'].astype(str).str.contains("AssertionError", na=False)
-            & ~log2_orig['failure_type'].astype(str).str.contains("Mutation", na=False)
-        )
-
-        # print(f"\n=== COMPARISON SUMMARY ===")
-        # print(f"Total tasks processed: {total_tasks}")
-        # print(f"Both succeeded: {both_succeeded}")
-        # print(f"Both failed: {both_failed}")
-        # print(f"IdenticalMutationError: {identical_mutation_errors}")
-        # print(f"Log1 Assertion Errors {mask1.sum()}")
-        # print(f"Log2 Assertion Errors {mask2.sum()}")
-        # print(f"Comparable tasks (atleast one succeeded): {tot}")
-        # print(f"  - Log1 failed, Log2 succeeded: {log1_inconsistencies}")
-        # print(f"  - Log1 succeeded, Log2 failed: {log2_inconsistencies}")
-        # total_inconsistencies = log1_inconsistencies + log2_inconsistencies
-        # print(f"Total inconsistencies: {total_inconsistencies}/{tot}")
-
-        # return f"{log1_inconsistencies}/{tot}", f"{log2_inconsistencies}/{tot}"
-        # print('----')
         return {
             'log1_inconsistencies': log1_inconsistencies,
             'log2_inconsistencies': log2_inconsistencies,
             'total_inconsistencies': total_inconsistencies,
-            'total_inconsistency_questions': total_comparisons,
-            'log1_success': log1_total_answered - mask1.sum(),
-            'log2_success': log2_total_answered - mask2.sum(),
+            'total_inconsistency_comparisons': total_comparisons,
+            'log1_success': int(mask1.sum()),
+            'log2_success': int(mask2.sum()),
             'log1_total_answered': log1_total_answered,
             'log2_total_answered': log2_total_answered,
             'total_tasks': total_tasks
