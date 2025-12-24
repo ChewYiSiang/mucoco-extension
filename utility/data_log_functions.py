@@ -1,5 +1,6 @@
 
 import pandas as pd
+import os
 from utility.constants import CodeGeneration, HumanEval, BigCodeBench
 from typing import Tuple, Dict, Any, List
 from code_generation.code_generation_tester import LLMExecutionRuntimeError, LLMExecutionError
@@ -289,6 +290,12 @@ class DataLogHelper:
             task_id = log1_data['task_id']
             log_2_matched_data = log2[log2["task_id"] == task_id]
 
+            # sending updates for bigcodebench evaluations
+            if benchmark == BigCodeBench.NAME:
+                num = int(task_id.split('o')[-1])
+                if num % 25 == 0:
+                    print(f"[PROGRESS]: {num/total_tasks}")
+
             if log_2_matched_data.shape[0] != 1:
                 # raise ValueError(f"Expected exactly one matched task_id in log_2, but found {log_2_matched_data.shape[0]} matched task_id.")
                 continue
@@ -334,5 +341,56 @@ class DataLogHelper:
             'log2_total_answered': log2_total_answered,
             'total_tasks': total_tasks
         }
+    
+    def standardize_two_df(df1: pd.DataFrame, df2: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        common_ids = set(df1["task_id"]) & set(df2["task_id"])
+        if not common_ids:
+            print("⚠️ No matching task_ids found between the two DataFrames.")
+            return df1.iloc[0:0], df2.iloc[0:0]  # return empty aligned frames
 
+        df1_filtered = df1[df1["task_id"].isin(common_ids)].copy()
+        df2_filtered = df2[df2["task_id"].isin(common_ids)].copy()
+
+        df1_filtered = df1_filtered.drop_duplicates(subset=["task_id"], keep="first")
+        df2_filtered = df2_filtered.drop_duplicates(subset=["task_id"], keep="first")
+
+        df1_filtered = df1_filtered.sort_values("task_id").reset_index(drop=True)
+        df2_filtered = df2_filtered.sort_values("task_id").reset_index(drop=True)
+
+        return df1_filtered, df2_filtered
+    
+    def clean_up_csv_name(file_name: str)-> str:
+        mutation_type = file_name.split("shot_")[-1]
+        if "_" in mutation_type:
+            mutation = mutation_type.replace("_", " ").title()
+            return mutation
+        return mutation_type.capitalize()
+    
+    def obtain_category(log_name:str) -> str | None:
+        mutation_categories = {
+            "Lexical": [
+                "literal_format",
+                "random",
+                "sequential"
+            ],
+            "Syntactic": [
+                "for2while",
+                "for2enumerate"
+            ],
+            "Logical": [
+                "boolean_literal",
+                "constant_unfold",
+                "constant_unfold_add",
+                "constant_unfold_mult",
+                "demorgan",
+                "commutative_reorder"
+            ]
+        }
+
+        for cat, mut in mutation_categories.items():
+            for m in mut:
+                if m in log_name:
+                    return cat
+
+        return None
 
