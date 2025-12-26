@@ -11,7 +11,8 @@ import matplotlib
 matplotlib.use("Agg")  # Non-interactive backend (no GUI)
 
 
-
+LLM_EXECUTION_ERROR = "LLM Execution Error"
+LLM_CORRECTNESS_ERROR = "LLM Correctness Error"
 
 class TimeoutError(Exception): pass
 
@@ -140,13 +141,22 @@ class DataLogHelper:
         Returns:
             - dictionary containing inconsistencies scores
         """
-        def is_valid_str_failure(res: str | float) -> bool:
+        def is_valid_str_failure(res: str | float) -> Dict[str, bool]:
+
+            failure_dict = {
+                "LLM Correctness Error": False,
+                "LLM Execution Error": False,
+            }
+
             if isinstance(res, str):
                 has_assertion_error = AssertionError.__name__ in res and "Mutation" not in res
                 has_llm_runtime_error = (LLMExecutionRuntimeError.__name__ in res) or (LLMExecutionError.__name__ in res)
                 failed_to_parse_llm_ans = "could_not_parse_LLM_answer" in res
 
-                if has_assertion_error or has_llm_runtime_error or failed_to_parse_llm_ans:
+                failure_dict[LLM_EXECUTION_ERROR] = has_assertion_error or failed_to_parse_llm_ans
+                failure_dict[LLM_CORRECTNESS_ERROR] = has_llm_runtime_error
+
+                if any(val for val in failure_dict.values() if val == True):
                     return True
                 return False
             return False
@@ -289,12 +299,6 @@ class DataLogHelper:
 
             task_id = log1_data['task_id']
             log_2_matched_data = log2[log2["task_id"] == task_id]
-
-            # sending updates for bigcodebench evaluations
-            if benchmark == BigCodeBench.NAME:
-                num = int(task_id.split('o')[-1])
-                if num % 25 == 0:
-                    print(f"[PROGRESS]: {num/total_tasks}")
 
             if log_2_matched_data.shape[0] != 1:
                 # raise ValueError(f"Expected exactly one matched task_id in log_2, but found {log_2_matched_data.shape[0]} matched task_id.")

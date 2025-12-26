@@ -201,7 +201,7 @@ def extract_assert_cases(code: str) -> Tuple[int, List, int]:
     test_cases = []             # list storing the test parameters and test outputs for this check function
     num_cases = 0               # integer storing the number of test cases in this check function
     failed_cases = set()        # assert statements that failed to extract, if any
-    rejected_cases = 0           # rejected test cases as the assert statements do not check for "=="
+    rejected_cases = 0          # rejected test cases as the assert statements do not check for "=="
 
     tree = ast.parse(code)
     for node in tree.body:
@@ -220,7 +220,7 @@ def extract_assert_cases(code: str) -> Tuple[int, List, int]:
             if isinstance(test_expr, ast.Compare):
                 ### Extracts test cases such as "assert candidate([1,2,3]) == 3"
                 ops_type = test_expr.ops[0]                 # assuming only one operator in the assert case
-                if type(ops_type) != ast.Eq:                # test case rejected as it is not check for equivalence
+                if type(ops_type) not in (ast.Eq, ast.Is):                # test case rejected as it is not check for equivalence
                     rejected_cases += 1
                     num_cases -= 1                          # not collecting comparisons with "<", ">", etc as test cases
                     continue
