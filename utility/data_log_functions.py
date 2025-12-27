@@ -13,10 +13,17 @@ matplotlib.use("Agg")  # Non-interactive backend (no GUI)
 
 LLM_EXECUTION_ERROR = "LLM Execution Error"
 LLM_CORRECTNESS_ERROR = "LLM Correctness Error"
+LLM_ANSWER_CORRECT = "LLM Answer Correct"
 
 class TimeoutError(Exception): pass
 
 class DataLogHelper:
+    def __init__(self):
+        self.inconsistency_direction = {
+            "original": 0,
+            "mutated": 0,
+        }
+
     def compare_model_outputs(
         log1_data: Dict[str, Any],
         log2_data: Dict[str, Any],
@@ -116,8 +123,11 @@ class DataLogHelper:
         else:
             inconsistency_dict['inconsistency_exists'] = model_output1 != model_output2
         return inconsistency_dict
+    
+    
 
     def inconsistency_heuristics(
+            self, 
             task: str, 
             benchmark: str,
             log1_data: Dict[str, Any],
@@ -141,25 +151,36 @@ class DataLogHelper:
         Returns:
             - dictionary containing inconsistencies scores
         """
-        def is_valid_str_failure(res: str | float) -> Dict[str, bool]:
+
+        def is_valid_assertion_failure(res: str | float) -> Dict[str, bool]:
+            """
+            this method determines if the LLM output failure string is a relevant output for inconsistency testing
+            relevant cases includes:
+                1. output is of type float -> LLM output is valid and correct
+                2. Assertion Error -> LLM output is valid but incorrect
+                3. Unable to parse the LLM answer -> LLM output is invalid
+                4. LLMExecutionRuntimeError -> LLM failing to complete the task in the allotted time 
+            
+            irrelevant cases includes:
+                1. Original task could not be mutated by the framework
+                2. Original task did not have more than 1 example, hence disqualifying it as an appropriate task for few shot prompting.
+            """
 
             failure_dict = {
-                "LLM Correctness Error": False,
-                "LLM Execution Error": False,
+                LLM_ANSWER_CORRECT: isinstance(res, float),
+                LLM_CORRECTNESS_ERROR: False,
+                LLM_EXECUTION_ERROR: False
             }
 
             if isinstance(res, str):
                 has_assertion_error = AssertionError.__name__ in res and "Mutation" not in res
-                has_llm_runtime_error = (LLMExecutionRuntimeError.__name__ in res) or (LLMExecutionError.__name__ in res)
                 failed_to_parse_llm_ans = "could_not_parse_LLM_answer" in res
+                has_llm_runtime_error = (LLMExecutionRuntimeError.__name__ in res) or (LLMExecutionError.__name__ in res)
 
                 failure_dict[LLM_EXECUTION_ERROR] = has_assertion_error or failed_to_parse_llm_ans
                 failure_dict[LLM_CORRECTNESS_ERROR] = has_llm_runtime_error
 
-                if any(val for val in failure_dict.values() if val == True):
-                    return True
-                return False
-            return False
+            return failure_dict
         
         # print(log1_data['task_id'])
 
@@ -174,18 +195,23 @@ class DataLogHelper:
         if log1_data['task_id'] in( "BigCodeBencho471",): 
             return inconsistencies
 
-        # if log1_data['task_id'] != "BigCodeBencho842":
-        #     return inconsistencies
-
         # Extracting key variables from log data
         failure_type1 = log1_data['failure_type']
         failure_type2 = log2_data['failure_type']
 
+        res1_result = is_valid_assertion_failure(failure_type1)
+        res2_result = is_valid_assertion_failure(failure_type2)
+
         # determining the outcome of the llm output: either correct or incorrect
-        res1_correct = isinstance(failure_type1, float)
-        res2_correct = isinstance(failure_type2, float)
-        res1_wrong = is_valid_str_failure(failure_type1)
-        res2_wrong = is_valid_str_failure(failure_type2)
+        res1_correct = res1_result[LLM_ANSWER_CORRECT]
+        res2_correct = res2_result[LLM_ANSWER_CORRECT]
+        res1_wrong = res1_result[LLM_CORRECTNESS_ERROR]
+        res2_wrong = res2_result[LLM_CORRECTNESS_ERROR]
+        res1_invalid = res1_result[LLM_EXECUTION_ERROR]
+        res2_invalid = res2_result[LLM_EXECUTION_ERROR]
+
+        failure_dict1 = {LLM_ANSWER_CORRECT:  res1_correct } | failure_dict1
+        failure_dict2 = {LLM_ANSWER_CORRECT:  res2_correct } | failure_dict2
 
         def run_comparison():
             return DataLogHelper.compare_model_outputs(
@@ -199,18 +225,18 @@ class DataLogHelper:
         if res1_correct and res2_correct:
             inconsistency_errors = {}
 
-        # 2. check if either res1 is wrong while res2 is correct
-        elif res1_wrong and res2_correct:
-            inconsistencies['inconsistency_res1'] += 1
-            inconsistency_errors = run_comparison()
-
-        # 3. check if either res2 is wrong while res1 is correct
-        elif res2_wrong and res1_correct:
+        # 2. check if either res1 is correct and res2 is invalid or wrong
+        elif res1_correct and (res2_wrong or res2_invalid):
             inconsistencies['inconsistency_res2'] += 1
             inconsistency_errors = run_comparison()
 
+        # 3. check if either res1 is wrong while res2 is correct
+        elif res2_correct and (res1_wrong or res1_invalid):
+            inconsistencies['inconsistency_res1'] += 1
+            inconsistency_errors = run_comparison()
+
         # 4. check if res1 and res2 are both wrong
-        elif res1_wrong and res2_wrong:
+        elif (res1_wrong or res1_invalid) and (res2_wrong or res2_invalid):
             inconsistency_errors = run_comparison()
 
         # 5. else, either of them have some other errors that do not contribute to inconsistency
@@ -218,8 +244,9 @@ class DataLogHelper:
             return inconsistencies
         
         inconsistencies['inconsistency_comparison'] += 1
-        
-        inconsistencies['total_inconsistencies'] = 1 if inconsistency_errors.get('inconsistency_exists', False) else 0
+        if inconsistency_errors.get('inconsistency_exists', False):
+            inconsistencies['total_inconsistencies'] = 1
+
         inconsistencies['inconsistency_distance'] = inconsistency_errors.get('inconsistency_distance', 0)
 
         return inconsistencies
@@ -292,6 +319,8 @@ class DataLogHelper:
 
         total_tasks = log1.shape[0]
 
+        datalog_helper = DataLogHelper()
+
         ## Checking for inconsistencies between both logs
         for idx in range(total_tasks):
             log1_data = log1.loc[idx]
@@ -316,7 +345,7 @@ class DataLogHelper:
                 log2_total_answered += 1
 
             # **Inconsistency Scoring Heuristics**
-            inconsistency_scores = DataLogHelper.inconsistency_heuristics(
+            inconsistency_scores = datalog_helper.inconsistency_heuristics(
                 log1_data = log1_data,
                 log2_data = log2_data,
                 task = task,

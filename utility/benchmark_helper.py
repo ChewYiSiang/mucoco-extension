@@ -8,6 +8,7 @@ import builtins
 import subprocess, tempfile, os, json
 from pathlib import Path
 import textwrap
+import unittest
 import shutil
 
 class HumanEvalHelper:
@@ -273,6 +274,8 @@ class BigCodeBenchHelper:
             "passed": [],
             "failed": [],
             "errors": [],
+            "candidate_parsed": False,
+            "test_suite_parsed": False,
             "traceback": None,
             "stdout_stderr_tail": "",
         }
@@ -307,9 +310,13 @@ class BigCodeBenchHelper:
             with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
                 # Load candidate
                 exec(candidate, env)
+                payload['candidate_parsed'] = True
+
 
                 # Load tests
                 exec(test_suite, env)
+                payload['test_suite_parsed'] = True
+
                 TestCases = env["TestCases"]
 
                 # Discover test names up front
@@ -350,6 +357,10 @@ class BigCodeBenchHelper:
         main()
     """
 
+    def obtain_test_method_names(TestCasesCls: unittest.TestCase):
+        # standard unittest discovery naming
+        return unittest.defaultTestLoader.getTestCaseNames(TestCasesCls)
+
 
     def run_candidate_in_subprocess(candidate_str: str, test_suite_str: str, task_id: str, timeout_s: int = 30, keep_on_fail: bool = False):
         td = tempfile.mkdtemp(prefix="bcb_run_")
@@ -378,7 +389,9 @@ class BigCodeBenchHelper:
                     timeout=timeout_s,
                 )
             except subprocess.TimeoutExpired:
-                payload = {"status": "timeout", "testsRun": 0, "passed": [], "failed": [], "errors": [],
+                payload = {"status": "timeout", "testsRun": 0, "passed": [], "failed": [], "errors": [], 
+                        "candidate_parsed": False,
+                        "test_suite_parsed": False,
                         "traceback": None, "stdout_stderr_tail": ""}
                 return payload
 
@@ -387,7 +400,7 @@ class BigCodeBenchHelper:
                 payload = json.loads(cp.stdout.strip() or "{}")
                 if "status" not in payload:
                     raise ValueError("No status field")
-            except Exception:
+            except Exception as e:
                 payload = {
                     "status": "crash",
                     "testsRun": 0,
@@ -422,6 +435,22 @@ class BigCodeBenchHelper:
             return {}
         
         payload = BigCodeBenchHelper.run_candidate_in_subprocess(candidate, test_suite, task_id=task_id, timeout_s=10)
+
+        env = {}
+        # This essentially catches cases where the LLM output could not be parsed successfully
+        try:
+            if payload['candidate_parsed'] == False:
+
+                exec(test_suite, env)
+                test_method_names = BigCodeBenchHelper.obtain_test_method_names(env["TestCases"])
+
+            return {t: False for t in test_method_names}
+
+        except NameError:
+            pass            
+        except Exception:
+            print(payload)
+            print(task_id)
 
         passed_tasks = payload['passed']
         failed_tasks = payload['failed']
