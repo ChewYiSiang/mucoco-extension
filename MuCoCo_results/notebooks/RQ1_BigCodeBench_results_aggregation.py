@@ -46,23 +46,56 @@ def compare_logs_against_no_mutation(res_dir: str):
         
         # Adding results into the dataframe
         cleaned_mutation_name = DataLogHelper.clean_up_csv_name(log_name.replace('.csv', ''))
-        
+
+        # Metrics for model inconsistency calculation
+        mutation_inconsistencies = inconsistency_dict['total_inconsistencies']
+        mutation_cumulative_inc_dist = inconsistency_dict['cumulative_inconsistency_distance']
+        mutation_questions = inconsistency_dict['total_inconsistency_comparisons']
+
+        # Metrics for model accuracy calculation
+        mutation_successes = inconsistency_dict['log2_success']
+        mutation_answered = inconsistency_dict['log2_total_answered']
+
+        # Metrics for direction calculation
+        mutation_incorrect_dir = inconsistency_dict.get('incorrect_dir', {}) or {}
+        mutation_invalid_dir = inconsistency_dict.get('invalid_dir', {}) or {}
+
         if log_category:
             d: Dict = category_dict.get(log_category, {})
-            d['total_inconsistencies'] = d.get('total_inconsistencies', 0) + inconsistency_dict['total_inconsistencies']
-            d['total_questions'] = d.get('total_questions', 0) + inconsistency_dict['total_inconsistency_comparisons']
-            d['total_success'] = d.get('total_success', 0) + inconsistency_dict['log2_success']
-            d['total_answered'] = d.get('total_answered', 0) + inconsistency_dict['log2_total_answered']
-            d['cumulative_inconsistency_distance'] = d.get('cumulative_inconsistency_distance', 0) + inconsistency_dict['cumulative_inconsistency_distance']
+
+            # Obtaining metrics used for model inconsistency
+            d['total_inconsistencies'] = d.get('total_inconsistencies', 0) + mutation_inconsistencies
+            d['total_questions'] = d.get('total_questions', 0) + mutation_questions
+            d['cumulative_inconsistency_distance'] = d.get('cumulative_inconsistency_distance', 0) + mutation_cumulative_inc_dist
+
+            # Obtaining metrics used for calculating model accuracy
+            d['total_success'] = d.get('total_success', 0) + mutation_successes
+            d['total_answered'] = d.get('total_answered', 0) + mutation_answered
+
+            # Accounting for incorrect and invalid directions (merge-by-sum)
+            incorrect_dir: Dict = d.get('incorrect_dir', {}) or {}
+            d['incorrect_dir'] = {
+                k: incorrect_dir.get(k, 0) + mutation_incorrect_dir.get(k, 0)
+                for k in (incorrect_dir | mutation_incorrect_dir)
+            }
+
+            invalid_dir: Dict = d.get('invalid_dir', {}) or {}
+            d['invalid_dir'] = {
+                k: invalid_dir.get(k, 0) + mutation_invalid_dir.get(k, 0)
+                for k in (invalid_dir | mutation_invalid_dir)
+            }
+
             category_dict[log_category] = d
 
         # adding results in mutation_dict, with the mutation name as key
         mutation_dict[cleaned_mutation_name] = {
-            'total_inconsistencies': inconsistency_dict['total_inconsistencies'],
-            'total_questions': inconsistency_dict['total_inconsistency_comparisons'],
-            'total_success': inconsistency_dict['log2_success'],
-            'total_answered': inconsistency_dict['log2_total_answered'],
-            'cumulative_inconsistency_distance': inconsistency_dict['cumulative_inconsistency_distance']
+            'total_inconsistencies': mutation_inconsistencies,
+            'total_questions': mutation_questions,
+            'total_success': mutation_successes,
+            'total_answered': mutation_answered,
+            'cumulative_inconsistency_distance': mutation_cumulative_inc_dist,
+            'incorrect_dir': dict(mutation_incorrect_dir),
+            'invalid_dir': dict(mutation_invalid_dir),
         }
 
     return mutation_dict | category_dict
@@ -71,6 +104,7 @@ def compare_logs_against_no_mutation(res_dir: str):
 if __name__ == "__main__":
     import argparse
     import json
+    from pathlib import Path
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--res_dir", required=True)
@@ -78,6 +112,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     results_dict = compare_logs_against_no_mutation(args.res_dir)
+
+    out_path = Path(args.out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Optional: save category_dict
     with open(args.out_path, "w") as f:
