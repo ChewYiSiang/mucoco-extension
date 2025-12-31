@@ -85,16 +85,8 @@ class TurbulenceLogHelper:
         self.task = task
         self.test_suite_outcomes = {}
         self.test_func_names = {}
-
-        db_helper = MongoDBHelper()
-        self.turbulence_db = db_helper.client["Baseline_Questions_DB"]["Turbulence_Benchmark"]
-        self.total_questions= self.turbulence_db.count_documents({})
-        self.total_tasks = 0
-
-        for idx in range(1,self.total_questions+1):
-            task_id = f"TurbulenceQ{idx}"
-            qn = self.turbulence_db.find_one({"_id":task_id})
-            self.total_tasks += len(qn['params']) if qn != None else 0
+        self.failure_types = {}
+        self.total_questions = 59
 
     def run_candidate_in_subprocess(
             self,
@@ -226,29 +218,36 @@ class TurbulenceLogHelper:
         The code inconsistency score of the turbulence benchmark is calculated through pairwise comparisons of question instances of the same template.
         """
         inconsistency_count = 0
+        inconsistency_distance = 0
         total_comparisons = 0
-        log1_assertion = 0
-        log1_correct = 0
+        total_correct = 0
+        total_assertion = 0
+        total_invalid = 0
 
 
         for idx in range(1, self.total_questions+2):
             task_id = f"TurbulenceQ{idx}"
+            print(task_id)
             log_task_qns = log[log['task_id'].str.contains(rf'^{task_id}(?:_|$)', regex=True)]
             for idx, l in log_task_qns.iterrows():
-                if isinstance(l['failure_type'], float):
-                    log1_correct +=1 
-                elif "AssertionError" in l['failure_type'] and "Mutation" not in l['failure_type']:
-                    log1_assertion += 1
+                qn_id = l['task_id']
+                failure_type = l['failure_type']
 
-            print(task_id, f"Num questions: {len(log_task_qns)}, Num combinations: {math.comb(len(log_task_qns), 2)}")
 
+                result = DataLogHelper.verify_failure_type_relevance(failure_type)
+                total_correct += 1 if result[LLM_ANSWER_CORRECT] else 0
+                total_assertion += 1 if result[LLM_CORRECTNESS_ERROR] else 0
+                total_invalid += 1 if result[LLM_EXECUTION_ERROR] else 0
+            
+                self.failure_types[qn_id] = result
 
             # pairwise comparisons between entries with the same question template
             for (_, row1), (_, row2) in combinations(log_task_qns.iterrows(), 2):
-                failure_type1 = row1['failure_type']
-                failure_type2 = row2['failure_type']
-                row1_result = DataLogHelper.verify_failure_type_relevance(failure_type1)
-                row2_result = DataLogHelper.verify_failure_type_relevance(failure_type2)
+                qn_id1 = row1['task_id']
+                qn_id2 = row2['task_id']
+
+                row1_result = self.failure_types[qn_id1]
+                row2_result = self.failure_types[qn_id2]
 
 
                 # determining the outcome of the llm output: either correct or incorrect
@@ -268,13 +267,13 @@ class TurbulenceLogHelper:
                 elif (res1_correct and (res2_invalid or res2_wrong)) or (res2_correct and (res1_invalid or res1_wrong)):
                     inconsistency_count += 1
                     inconsistency_dict = self.obtain_inconsistency_difference(row1, row2)
+                    inconsistency_distance += inconsistency_dict.get('inconsistency_distance', 0)
 
                 elif res1_wrong and res2_wrong:
                     inconsistency_dict = self.obtain_inconsistency_difference(row1, row2)
                     if inconsistency_dict['inconsistency_exists']:
                         inconsistency_count += 1
-                    
-                    # TODO: if inconsistency exists: inconsistency count += 1
+                    inconsistency_distance += inconsistency_dict.get('inconsistency_distance', 0)
 
                 elif (res1_invalid and res2_wrong) or (res1_wrong and res2_invalid):
                     inconsistency_count += 1
@@ -284,13 +283,14 @@ class TurbulenceLogHelper:
                     continue
 
                 total_comparisons += 1
-            print(task_id, inconsistency_count, total_comparisons)
         
         return {
             "inconsistency_count": inconsistency_count,
             "total_comparisons": total_comparisons,
-            "correct_instances" : log1_correct,
-            "incorrect_instances": log1_assertion
+            "inconsistency_distance": inconsistency_distance,
+            "total_correct" : total_correct,
+            "total_assertion": total_assertion,
+            "total_invalid": total_invalid
         }
 
     def obtain_question_inconsistency_count(self, log: pd.DataFrame) -> Dict[str, float]:
