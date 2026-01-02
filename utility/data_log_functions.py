@@ -182,8 +182,6 @@ class DataLogHelper:
             - dictionary containing inconsistencies scores
         """
 
-
-        
         # print(log1_data['task_id'])
 
         inconsistencies = {
@@ -211,7 +209,6 @@ class DataLogHelper:
         res2_wrong = res2_result[LLM_CORRECTNESS_ERROR]
         res1_invalid = res1_result[LLM_EXECUTION_ERROR]
         res2_invalid = res2_result[LLM_EXECUTION_ERROR]
-
 
         def run_comparison():
             return DataLogHelper.compare_model_outputs(
@@ -438,9 +435,9 @@ class DataLogHelper:
             ],
             "Logical": [
                 "boolean_literal",
-                "constant_unfold",
                 "constant_unfold_add",
                 "constant_unfold_mult",
+                "constant_unfold",
                 "demorgan",
                 "commutative_reorder"
             ]
