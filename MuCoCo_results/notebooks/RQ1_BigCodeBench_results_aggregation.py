@@ -60,6 +60,9 @@ def compare_logs_against_no_mutation(res_dir: str):
         mutation_incorrect_dir = inconsistency_dict.get('incorrect_dir', {}) or {}
         mutation_invalid_dir = inconsistency_dict.get('invalid_dir', {}) or {}
 
+        # Metrics for inconsistency types
+        mutation_inconsistency_types = inconsistency_dict.get('inconsistency_types', {}) or {}
+
         if log_category:
             d: Dict = category_dict.get(log_category, {})
 
@@ -85,6 +88,12 @@ def compare_logs_against_no_mutation(res_dir: str):
                 for k in (invalid_dir | mutation_invalid_dir)
             }
 
+            inconsistency_type_dir: Dict = d.get('inconsistency_types', {}) or {}
+            d['inconsistency_types'] = {
+                k: inconsistency_type_dir.get(k,0) + mutation_inconsistency_types.get(k,0)
+                for k in (inconsistency_type_dir | mutation_inconsistency_types)
+            }
+
             category_dict[log_category] = d
 
         # adding results in mutation_dict, with the mutation name as key
@@ -96,7 +105,9 @@ def compare_logs_against_no_mutation(res_dir: str):
             'cumulative_inconsistency_distance': mutation_cumulative_inc_dist,
             'incorrect_dir': dict(mutation_incorrect_dir),
             'invalid_dir': dict(mutation_invalid_dir),
+            'inconsistency_types': dict(mutation_inconsistency_types)
         }
+
 
     return mutation_dict | category_dict
         

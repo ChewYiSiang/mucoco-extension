@@ -17,6 +17,11 @@ LLM_ANSWER_CORRECT = "LLM Answer Correct"
 MUTATED_TASK = "Mutated"
 ORIGINAL_TASK = "Original"
 
+CORRECTNESS_INCONSISTENCY = "Correctness Inconsistency"
+INCORRECTNESS_INCONSISTENCY = "Incorrectness Inconsistency"
+INVALID_INCONSISTENCY = "Invalid Inconsistency"
+
+
 class TimeoutError(Exception): pass
 
 class DataLogHelper:
@@ -182,8 +187,6 @@ class DataLogHelper:
             - dictionary containing inconsistencies scores
         """
 
-        # print(log1_data['task_id'])
-
         inconsistencies = {
             "incorrect_dir": [None],
             "invalid_dir": [None],
@@ -258,6 +261,13 @@ class DataLogHelper:
         inconsistencies['inconsistency_comparison'] += 1
         if inconsistency_errors.get('inconsistency_exists', False):
             inconsistencies['total_inconsistencies'] = 1
+            if res1_invalid or res2_invalid:
+                inconsistencies['inconsistency_type'] = INVALID_INCONSISTENCY
+            elif res1_wrong and res2_wrong:
+                inconsistencies['inconsistency_type'] = INCORRECTNESS_INCONSISTENCY
+            else:
+                inconsistencies['inconsistency_type'] = CORRECTNESS_INCONSISTENCY
+
 
         inconsistencies['inconsistency_distance'] = inconsistency_errors.get('inconsistency_distance', 0)
         
@@ -332,6 +342,12 @@ class DataLogHelper:
 
         total_tasks = log1.shape[0]
 
+        inconsistency_types = {
+            INCORRECTNESS_INCONSISTENCY: 0,
+            CORRECTNESS_INCONSISTENCY: 0,
+            INVALID_INCONSISTENCY: 0,
+        }
+
         datalog_helper = DataLogHelper()
 
         ## Checking for inconsistencies between both logs
@@ -378,7 +394,11 @@ class DataLogHelper:
 
 
             total_inconsistencies += inconsistency_scores['total_inconsistencies']
+            inconsistency_type = inconsistency_scores.get('inconsistency_type', None)
+            if inconsistency_type:
+                inconsistency_types[inconsistency_type] +=1 
             total_comparisons += inconsistency_scores['inconsistency_comparison']
+
             if task == CodeGeneration.NAME:
                 cumulative_inconsistency_distance += inconsistency_scores['inconsistency_distance']
 
@@ -389,6 +409,7 @@ class DataLogHelper:
             'incorrect_dir' : incorrect_dir_dict,
             'invalid_dir' : invalid_dir_dict,
             'total_inconsistencies': total_inconsistencies,
+            'inconsistency_types': inconsistency_types,
             'total_inconsistency_comparisons': total_comparisons,
             'cumulative_inconsistency_distance': cumulative_inconsistency_distance,
             'log1_success': int(mask1.sum()),

@@ -227,7 +227,6 @@ class TurbulenceLogHelper:
 
         for idx in range(1, self.total_questions+2):
             task_id = f"TurbulenceQ{idx}"
-            print(task_id)
             log_task_qns = log[log['task_id'].str.contains(rf'^{task_id}(?:_|$)', regex=True)]
             for idx, l in log_task_qns.iterrows():
                 qn_id = l['task_id']
