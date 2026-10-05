@@ -1,0 +1,78 @@
+[
+  {
+    "run": "qwen_constant_unfold_add",
+    "written": "2026-10-05T12:46:21Z",
+    "model": "Qwen/Qwen3-8B",
+    "quantisation": "4-bit",
+    "probe": true,
+    "max_new_tokens": null,
+    "temperature": 0.0,
+    "benchmark": "CruxEval",
+    "task": "output_prediction",
+    "prompt_type": "zero_shot",
+    "mutation": "constant_unfold_add",
+    "tasks_requested": 800,
+    "truth_file": "results\\truth\\cruxeval.jsonl",
+    "truth_sha256": "b0df3c202cd1a659e017d248f723c317f4f2df53ac150cfb01e03aff2f590f41",
+    "probe_package_bytes": 188379,
+    "results_csv": "CruxEval_zero_shot_constant_unfold_add.csv",
+    "profile_log": "profiles_constant_unfold_add.jsonl",
+    "profiles_logged": 181,
+    "outcomes": {
+      "NoConstantUnfoldError": 619,
+      "AssertionError": 139,
+      "correct": 42
+    },
+    "notes": null
+  },
+  {
+    "run": "qwen_no_mutation",
+    "written": "2026-10-05T12:46:21Z",
+    "model": "Qwen/Qwen3-8B",
+    "quantisation": "4-bit",
+    "probe": true,
+    "max_new_tokens": null,
+    "temperature": 0.0,
+    "benchmark": "CruxEval",
+    "task": "output_prediction",
+    "prompt_type": "zero_shot",
+    "mutation": "no_mutation",
+    "tasks_requested": 800,
+    "truth_file": "results\\truth\\cruxeval.jsonl",
+    "truth_sha256": "b0df3c202cd1a659e017d248f723c317f4f2df53ac150cfb01e03aff2f590f41",
+    "probe_package_bytes": 188379,
+    "results_csv": "CruxEval_zero_shot_no_mutation.csv",
+    "profile_log": "profiles_no_mutation.jsonl",
+    "profiles_logged": 800,
+    "outcomes": {
+      "AssertionError": 522,
+      "correct": 278
+    },
+    "notes": null
+  },
+  {
+    "run": "qwen_sequential",
+    "written": "2026-10-05T12:46:21Z",
+    "model": "Qwen/Qwen3-8B",
+    "quantisation": "4-bit",
+    "probe": true,
+    "max_new_tokens": null,
+    "temperature": 0.0,
+    "benchmark": "CruxEval",
+    "task": "output_prediction",
+    "prompt_type": "zero_shot",
+    "mutation": "sequential",
+    "tasks_requested": 800,
+    "truth_file": "results\\truth\\cruxeval.jsonl",
+    "truth_sha256": "b0df3c202cd1a659e017d248f723c317f4f2df53ac150cfb01e03aff2f590f41",
+    "probe_package_bytes": 188379,
+    "results_csv": "CruxEval_zero_shot_sequential.csv",
+    "profile_log": "profiles_sequential.jsonl",
+    "profiles_logged": 800,
+    "outcomes": {
+      "AssertionError": 535,
+      "correct": 265
+    },
+    "notes": null
+  }
+]
