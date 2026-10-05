@@ -96,6 +96,8 @@ class LLMModels:
         DEEPSEEK_CHAT = {"name": "deepseek-chat", "model_class": DeepSeekLLM}
         LLAMA_3_1_8B = {"name": "meta-llama/Llama-3.1-8B-Instruct", "model_class": TransformersCodeLLM}
 
+        DEEPSEEK_V4_FLASH = {"name": "deepseek-v4-flash", "model_class": DeepSeekLLM}
+
 
 ReasoningModels = LLMModels.ReasoningModels
 NonReasoningModels = LLMModels.NonReasoningModels
