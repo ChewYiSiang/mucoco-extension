@@ -12,3 +12,5 @@ y.py
 # OpenRouter test notebooks (temporary)
 prediction_inconsistency/test_notebooks/open_router/
 venv_testreasoning-probe.zip
+reasoning-probe.zip
+/writes.jsonl
