@@ -374,7 +374,9 @@ class CodeMutator:
             variable_metadata = CodeMutator.obtain_variable_types(tree, input_metadata)
             merged_metadata = input_metadata | variable_metadata
             
-            commutative_operation_checker = ASTNodeHelper.CommutativeOperationDetectorNodeVisitor(metadata_dict=merged_metadata)
+            # Khoi's ast_mutation.py (Nov 2026) decides what to reorder without the type metadata,
+            # so the detector and the transformer below are called without it
+            commutative_operation_checker = ASTNodeHelper.CommutativeOperationDetectorNodeVisitor()
             commutative_operation_checker.visit(tree)
             commutative_operation_exists = commutative_operation_checker.commutative_operation_exists
             if commutative_operation_exists == False:
@@ -883,7 +885,7 @@ class CodeMutator:
         a + b ↔ b + a, a * b ↔ b * a
         """
         try:
-            mutated_source = ASTNodeHelper.CommutativeReorderTransformer(metadata_dict= metadata_dict).visit(tree)
+            mutated_source = ASTNodeHelper.CommutativeReorderTransformer().visit(tree)
         except Exception as e:
             raise MutationFailedError(error=e)
         
